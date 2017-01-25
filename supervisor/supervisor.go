@@ -18,7 +18,7 @@ const (
 )
 
 // New returns an initialized Process supervisor.
-func New(stateDir string, runtimeName string, runtimeArgs []string, timeout time.Duration, retainCount int) (*Supervisor, error) {
+func New(stateDir string, runtimeName, shimName string, runtimeArgs []string, timeout time.Duration, retainCount int) (*Supervisor, error) {
 	startTasks := make(chan *startTask, 10)
 	if err := os.MkdirAll(stateDir, 0755); err != nil {
 		return nil, err
@@ -41,6 +41,7 @@ func New(stateDir string, runtimeName string, runtimeArgs []string, timeout time
 		monitor:     monitor,
 		runtime:     runtimeName,
 		runtimeArgs: runtimeArgs,
+		shim:        shimName,
 		timeout:     timeout,
 	}
 	if err := setupEventLog(s, retainCount); err != nil {
@@ -63,7 +64,7 @@ func setupEventLog(s *Supervisor, retainCount int) error {
 		return err
 	}
 	logrus.WithField("count", len(s.eventLog)).Debug("containerd: read past events")
-	events := s.Events(time.Time{})
+	events := s.Events(time.Time{}, false, "")
 	return eventLogger(s, filepath.Join(s.stateDir, "events.log"), events, retainCount)
 }
 
@@ -143,12 +144,14 @@ func readEventLog(s *Supervisor) error {
 	return nil
 }
 
+// Supervisor represents a container supervisor
 type Supervisor struct {
 	// stateDir is the directory on the system to store container runtime state information.
 	stateDir string
 	// name of the OCI compatible runtime used to execute containers
 	runtime     string
 	runtimeArgs []string
+	shim        string
 	containers  map[string]*containerInfo
 	startTasks  chan *startTask
 	// we need a lock around the subscribers map only because additions and deletions from
@@ -177,22 +180,24 @@ func (s *Supervisor) Close() error {
 	return nil
 }
 
+// Event represents a container event
 type Event struct {
 	ID        string    `json:"id"`
 	Type      string    `json:"type"`
 	Timestamp time.Time `json:"timestamp"`
 	PID       string    `json:"pid,omitempty"`
-	Status    int       `json:"status,omitempty"`
+	Status    uint32    `json:"status,omitempty"`
 }
 
 // Events returns an event channel that external consumers can use to receive updates
 // on container events
-func (s *Supervisor) Events(from time.Time) chan Event {
+func (s *Supervisor) Events(from time.Time, storedOnly bool, id string) chan Event {
+	c := make(chan Event, defaultBufferSize)
+	if storedOnly {
+		defer s.Unsubscribe(c)
+	}
 	s.subscriberLock.Lock()
 	defer s.subscriberLock.Unlock()
-	c := make(chan Event, defaultBufferSize)
-	EventSubscriberCounter.Inc(1)
-	s.subscribers[c] = struct{}{}
 	if !from.IsZero() {
 		// replay old event
 		s.eventLock.Lock()
@@ -200,14 +205,17 @@ func (s *Supervisor) Events(from time.Time) chan Event {
 		s.eventLock.Unlock()
 		for _, e := range past {
 			if e.Timestamp.After(from) {
-				c <- e
+				if id == "" || e.ID == id {
+					c <- e
+				}
 			}
 		}
-		// Notify the client that from now on it's live events
-		c <- Event{
-			Type:      "live",
-			Timestamp: time.Now(),
-		}
+	}
+	if storedOnly {
+		close(c)
+	} else {
+		EventSubscriberCounter.Inc(1)
+		s.subscribers[c] = struct{}{}
 	}
 	return c
 }
@@ -216,9 +224,11 @@ func (s *Supervisor) Events(from time.Time) chan Event {
 func (s *Supervisor) Unsubscribe(sub chan Event) {
 	s.subscriberLock.Lock()
 	defer s.subscriberLock.Unlock()
-	delete(s.subscribers, sub)
-	close(sub)
-	EventSubscriberCounter.Dec(1)
+	if _, ok := s.subscribers[sub]; ok {
+		delete(s.subscribers, sub)
+		close(sub)
+		EventSubscriberCounter.Dec(1)
+	}
 }
 
 // notifySubscribers will send the provided event to the external subscribers
@@ -302,7 +312,7 @@ func (s *Supervisor) restore() error {
 			continue
 		}
 		id := d.Name()
-		container, err := runtime.Load(s.stateDir, id)
+		container, err := runtime.Load(s.stateDir, id, s.shim, s.timeout)
 		if err != nil {
 			return err
 		}
@@ -342,4 +352,40 @@ func (s *Supervisor) restore() error {
 		}
 	}
 	return nil
+}
+
+func (s *Supervisor) handleTask(i Task) {
+	var err error
+	switch t := i.(type) {
+	case *AddProcessTask:
+		err = s.addProcess(t)
+	case *CreateCheckpointTask:
+		err = s.createCheckpoint(t)
+	case *DeleteCheckpointTask:
+		err = s.deleteCheckpoint(t)
+	case *StartTask:
+		err = s.start(t)
+	case *DeleteTask:
+		err = s.delete(t)
+	case *ExitTask:
+		err = s.exit(t)
+	case *GetContainersTask:
+		err = s.getContainers(t)
+	case *SignalTask:
+		err = s.signal(t)
+	case *StatsTask:
+		err = s.stats(t)
+	case *UpdateTask:
+		err = s.updateContainer(t)
+	case *UpdateProcessTask:
+		err = s.updateProcess(t)
+	case *OOMTask:
+		err = s.oom(t)
+	default:
+		err = ErrUnknownTask
+	}
+	if err != errDeferredResponse {
+		i.ErrorCh() <- err
+		close(i.ErrorCh())
+	}
 }

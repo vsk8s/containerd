@@ -5,14 +5,17 @@ import (
 	"os"
 	"time"
 
+	netcontext "golang.org/x/net/context"
+
 	"github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
 	"github.com/docker/containerd"
+	"github.com/docker/containerd/api/grpc/types"
 )
 
 const usage = `High performance container daemon cli`
 
-type Exit struct {
+type exit struct {
 	Code int
 }
 
@@ -20,7 +23,7 @@ func main() {
 	// We want our defer functions to be run when calling fatal()
 	defer func() {
 		if e := recover(); e != nil {
-			if ex, ok := e.(Exit); ok == true {
+			if ex, ok := e.(exit); ok == true {
 				os.Exit(ex.Code)
 			}
 			panic(e)
@@ -41,8 +44,8 @@ func main() {
 		},
 		cli.StringFlag{
 			Name:  "address",
-			Value: "/run/containerd/containerd.sock",
-			Usage: "address of GRPC API",
+			Value: "unix:///run/containerd/containerd.sock",
+			Usage: "proto://address of GRPC API",
 		},
 		cli.DurationFlag{
 			Name:  "conn-timeout",
@@ -55,6 +58,7 @@ func main() {
 		containersCommand,
 		eventsCommand,
 		stateCommand,
+		versionCommand,
 	}
 	app.Before = func(context *cli.Context) error {
 		if context.GlobalBool("debug") {
@@ -67,7 +71,20 @@ func main() {
 	}
 }
 
+var versionCommand = cli.Command{
+	Name:  "version",
+	Usage: "return the daemon version",
+	Action: func(context *cli.Context) {
+		c := getClient(context)
+		resp, err := c.GetServerVersion(netcontext.Background(), &types.GetServerVersionRequest{})
+		if err != nil {
+			fatal(err.Error(), 1)
+		}
+		fmt.Printf("daemon version %d.%d.%d commit: %s\n", resp.Major, resp.Minor, resp.Patch, resp.Revision)
+	},
+}
+
 func fatal(err string, code int) {
 	fmt.Fprintf(os.Stderr, "[ctr] %s\n", err)
-	panic(Exit{code})
+	panic(exit{code})
 }

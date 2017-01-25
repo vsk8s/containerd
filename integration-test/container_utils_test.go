@@ -4,13 +4,38 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"syscall"
+	"time"
 
 	"github.com/docker/containerd/api/grpc/types"
+	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/timestamp"
 	"golang.org/x/net/context"
 )
+
+func (cs *ContainerdSuite) GetLogs() string {
+	b, _ := ioutil.ReadFile(cs.logFile.Name())
+	return string(b)
+}
+
+func (cs *ContainerdSuite) Events(from time.Time, storedOnly bool, id string) (types.API_EventsClient, error) {
+	var (
+		ftsp *timestamp.Timestamp
+		err  error
+	)
+	if !from.IsZero() {
+		ftsp, err = ptypes.TimestampProto(from)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return cs.grpcClient.Events(context.Background(), &types.EventsRequest{Timestamp: ftsp, StoredOnly: storedOnly, Id: id})
+}
 
 func (cs *ContainerdSuite) ListRunningContainers() ([]*types.Container, error) {
 	resp, err := cs.grpcClient.State(context.Background(), &types.StateRequest{})
@@ -20,10 +45,10 @@ func (cs *ContainerdSuite) ListRunningContainers() ([]*types.Container, error) {
 	return resp.Containers, nil
 }
 
-func (cs *ContainerdSuite) SignalContainerProcess(id string, procId string, sig uint32) error {
+func (cs *ContainerdSuite) SignalContainerProcess(id string, procID string, sig uint32) error {
 	_, err := cs.grpcClient.Signal(context.Background(), &types.SignalRequest{
 		Id:     id,
-		Pid:    procId,
+		Pid:    procID,
 		Signal: sig,
 	})
 	return err
@@ -35,6 +60,16 @@ func (cs *ContainerdSuite) SignalContainer(id string, sig uint32) error {
 
 func (cs *ContainerdSuite) KillContainer(id string) error {
 	return cs.SignalContainerProcess(id, "init", uint32(syscall.SIGKILL))
+}
+
+func (cs *ContainerdSuite) UpdateContainerResource(id string, rs *types.UpdateResource) error {
+	_, err := cs.grpcClient.UpdateContainer(context.Background(), &types.UpdateContainerRequest{
+		Id:        id,
+		Pid:       "init",
+		Status:    "",
+		Resources: rs,
+	})
+	return err
 }
 
 func (cs *ContainerdSuite) PauseContainer(id string) error {
@@ -73,8 +108,8 @@ type stdio struct {
 	stderrBuffer bytes.Buffer
 }
 
-type containerProcess struct {
-	containerId string
+type ContainerProcess struct {
+	containerID string
 	pid         string
 	bundle      *Bundle
 	io          stdio
@@ -83,7 +118,7 @@ type containerProcess struct {
 	hasExited   bool
 }
 
-func (c *containerProcess) openIo() (err error) {
+func (c *ContainerProcess) openIo() (err error) {
 	defer func() {
 		if err != nil {
 			c.Cleanup()
@@ -110,11 +145,11 @@ func (c *containerProcess) openIo() (err error) {
 	return nil
 }
 
-func (c *containerProcess) GetEventsChannel() chan *types.Event {
+func (c *ContainerProcess) GetEventsChannel() chan *types.Event {
 	return c.eventsCh
 }
 
-func (c *containerProcess) GetNextEvent() *types.Event {
+func (c *ContainerProcess) GetNextEvent() *types.Event {
 	if c.hasExited {
 		return nil
 	}
@@ -130,16 +165,16 @@ func (c *containerProcess) GetNextEvent() *types.Event {
 	return e
 }
 
-func (c *containerProcess) CloseStdin() error {
+func (c *ContainerProcess) CloseStdin() error {
 	_, err := c.cs.grpcClient.UpdateProcess(context.Background(), &types.UpdateProcessRequest{
-		Id:         c.containerId,
+		Id:         c.containerID,
 		Pid:        c.pid,
 		CloseStdin: true,
 	})
 	return err
 }
 
-func (c *containerProcess) Cleanup() {
+func (c *ContainerProcess) Cleanup() {
 	for _, f := range []*os.File{
 		c.io.stdinf,
 		c.io.stdoutf,
@@ -152,9 +187,9 @@ func (c *containerProcess) Cleanup() {
 	}
 }
 
-func NewContainerProcess(cs *ContainerdSuite, bundle *Bundle, cid, pid string) (c *containerProcess, err error) {
-	c = &containerProcess{
-		containerId: cid,
+func NewContainerProcess(cs *ContainerdSuite, bundle *Bundle, cid, pid string) (c *ContainerProcess, err error) {
+	c = &ContainerProcess{
+		containerID: cid,
 		pid:         "init",
 		bundle:      bundle,
 		eventsCh:    make(chan *types.Event, 8),
@@ -180,7 +215,7 @@ func NewContainerProcess(cs *ContainerdSuite, bundle *Bundle, cid, pid string) (
 	return c, nil
 }
 
-func (cs *ContainerdSuite) StartContainerWithEventFilter(id, bundleName string, filter func(*types.Event)) (c *containerProcess, err error) {
+func (cs *ContainerdSuite) StartContainerWithEventFilter(id, bundleName string, filter func(*types.Event)) (c *ContainerProcess, err error) {
 	bundle := GetBundle(bundleName)
 	if bundle == nil {
 		return nil, fmt.Errorf("No such bundle '%s'", bundleName)
@@ -215,11 +250,11 @@ func (cs *ContainerdSuite) StartContainerWithEventFilter(id, bundleName string, 
 	return c, nil
 }
 
-func (cs *ContainerdSuite) StartContainer(id, bundleName string) (c *containerProcess, err error) {
+func (cs *ContainerdSuite) StartContainer(id, bundleName string) (c *ContainerProcess, err error) {
 	return cs.StartContainerWithEventFilter(id, bundleName, nil)
 }
 
-func (cs *ContainerdSuite) RunContainer(id, bundleName string) (c *containerProcess, err error) {
+func (cs *ContainerdSuite) RunContainer(id, bundleName string) (c *ContainerProcess, err error) {
 	c, err = cs.StartContainer(id, bundleName)
 	if err != nil {
 		return nil, err
@@ -235,14 +270,14 @@ func (cs *ContainerdSuite) RunContainer(id, bundleName string) (c *containerProc
 	return c, err
 }
 
-func (cs *ContainerdSuite) AddProcessToContainer(init *containerProcess, pid, cwd string, env, args []string, uid, gid uint32) (c *containerProcess, err error) {
-	c, err = NewContainerProcess(cs, init.bundle, init.containerId, pid)
+func (cs *ContainerdSuite) AddProcessToContainer(init *ContainerProcess, pid, cwd string, env, args []string, uid, gid uint32) (c *ContainerProcess, err error) {
+	c, err = NewContainerProcess(cs, init.bundle, init.containerID, pid)
 	if err != nil {
 		return nil, err
 	}
 
 	pr := &types.AddProcessRequest{
-		Id:   init.containerId,
+		Id:   init.containerID,
 		Pid:  pid,
 		Args: args,
 		Cwd:  cwd,
@@ -263,4 +298,24 @@ func (cs *ContainerdSuite) AddProcessToContainer(init *containerProcess, pid, cw
 	}
 
 	return c, nil
+}
+
+type containerSorter struct {
+	c []*types.Container
+}
+
+func (s *containerSorter) Len() int {
+	return len(s.c)
+}
+
+func (s *containerSorter) Swap(i, j int) {
+	s.c[i], s.c[j] = s.c[j], s.c[i]
+}
+
+func (s *containerSorter) Less(i, j int) bool {
+	return s.c[i].Id < s.c[j].Id
+}
+
+func sortContainers(c []*types.Container) {
+	sort.Sort(&containerSorter{c})
 }

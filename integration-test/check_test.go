@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -16,14 +17,12 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/docker/containerd/api/grpc/types"
+	utils "github.com/docker/containerd/testutils"
 	"github.com/go-check/check"
-)
-
-var (
-	outputDirFormat = filepath.Join("test-artifacts", "runs", "%s")
-	archivesDir     = filepath.Join("test-artifacts", "archives")
+	"github.com/golang/protobuf/ptypes/timestamp"
 )
 
 func Test(t *testing.T) {
@@ -37,26 +36,41 @@ func init() {
 type ContainerdSuite struct {
 	cwd               string
 	outputDir         string
+	stateDir          string
+	grpcSocket        string
 	logFile           *os.File
 	cd                *exec.Cmd
 	syncChild         chan error
 	grpcClient        types.APIClient
 	eventFiltersMutex sync.Mutex
 	eventFilters      map[string]func(event *types.Event)
+	lastEventTs       *timestamp.Timestamp
 }
 
 // getClient returns a connection to the Suite containerd
 func (cs *ContainerdSuite) getClient(socket string) error {
+	// Parse proto://address form addresses.
+	bindParts := strings.SplitN(socket, "://", 2)
+	if len(bindParts) != 2 {
+		return fmt.Errorf("bad bind address format %s, expected proto://address", socket)
+	}
+
 	// reset the logger for grpc to log to dev/null so that it does not mess with our stdio
 	grpclog.SetLogger(log.New(ioutil.Discard, "", log.LstdFlags))
 	dialOpts := []grpc.DialOption{grpc.WithInsecure()}
 	dialOpts = append(dialOpts,
 		grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
-			return net.DialTimeout("unix", addr, timeout)
-		},
-		))
+			return net.DialTimeout(bindParts[0], bindParts[1], timeout)
+		}),
+		grpc.WithBlock(),
+		grpc.WithTimeout(5*time.Second),
+	)
 	conn, err := grpc.Dial(socket, dialOpts...)
 	if err != nil {
+		return err
+	}
+	healthClient := grpc_health_v1.NewHealthClient(conn)
+	if _, err := healthClient.Check(context.Background(), &grpc_health_v1.HealthCheckRequest{}); err != nil {
 		return err
 	}
 	cs.grpcClient = types.NewAPIClient(conn)
@@ -69,15 +83,18 @@ func (cs *ContainerdSuite) getClient(socket string) error {
 // via `SetContainerEventFilter()`, it will be invoked every time an
 // event for that id is received
 func (cs *ContainerdSuite) ContainerdEventsHandler(events types.API_EventsClient) {
-	timestamp := uint64(time.Now().Unix())
 	for {
 		e, err := events.Recv()
 		if err != nil {
+			// If daemon died or exited, return
+			if strings.Contains(err.Error(), "transport is closing") {
+				break
+			}
 			time.Sleep(1 * time.Second)
-			events, _ = cs.grpcClient.Events(context.Background(), &types.EventsRequest{Timestamp: timestamp})
+			events, _ = cs.grpcClient.Events(context.Background(), &types.EventsRequest{Timestamp: cs.lastEventTs})
 			continue
 		}
-		timestamp = e.Timestamp
+		cs.lastEventTs = e.Timestamp
 		cs.eventFiltersMutex.Lock()
 		if f, ok := cs.eventFilters[e.Id]; ok {
 			f(e)
@@ -89,80 +106,62 @@ func (cs *ContainerdSuite) ContainerdEventsHandler(events types.API_EventsClient
 	}
 }
 
-// generateReferencesSpecs invoke `runc spec` to produce the baseline
-// specs from which all future bundle will be generated
-func generateReferenceSpecs(destination string) error {
-	specs := exec.Command("runc", "spec")
-	specs.Dir = destination
-	return specs.Run()
+func (cs *ContainerdSuite) StopDaemon(kill bool) {
+	if cs.cd == nil {
+		return
+	}
+
+	if kill {
+		cs.cd.Process.Kill()
+		<-cs.syncChild
+		cs.cd = nil
+	} else {
+		// Terminate gently if possible
+		cs.cd.Process.Signal(os.Interrupt)
+
+		done := false
+		for done == false {
+			select {
+			case err := <-cs.syncChild:
+				if err != nil {
+					fmt.Printf("master containerd did not exit cleanly: %v\n", err)
+				}
+				done = true
+			case <-time.After(3 * time.Second):
+				fmt.Println("Timeout while waiting for containerd to exit, killing it!")
+				cs.cd.Process.Kill()
+			}
+		}
+	}
 }
 
-func (cs *ContainerdSuite) SetUpSuite(c *check.C) {
-	bundleMap = make(map[string]Bundle)
-	cs.eventFilters = make(map[string]func(event *types.Event))
-
-	// Get our CWD
-	if cwd, err := os.Getwd(); err != nil {
-		c.Fatalf("Could not determine current working directory: %v", err)
-	} else {
-		cs.cwd = cwd
-	}
-
-	// Clean old bundles
-	os.RemoveAll(bundlesDir)
-
-	// Ensure the oci bundles directory exists
-	if err := os.MkdirAll(bundlesDir, 0755); err != nil {
-		c.Fatalf("Failed to create bundles directory: %v", err)
-	}
-
-	// Generate the reference spec
-	if err := generateReferenceSpecs(bundlesDir); err != nil {
-		c.Fatalf("Unable to generate OCI reference spec: %v", err)
-	}
-
-	// Create our output directory
-	od := fmt.Sprintf(outputDirFormat, time.Now().Format("2006-01-02_150405.000000"))
-	cdStateDir := fmt.Sprintf("%s/containerd-master", od)
-	if err := os.MkdirAll(cdStateDir, 0755); err != nil {
-		c.Fatalf("Unable to created output directory '%s': %v", cdStateDir, err)
-	}
-
-	cdGRPCSock := filepath.Join(od, "containerd-master", "containerd.sock")
-	cdLogFile := filepath.Join(od, "containerd-master", "containerd.log")
-
-	f, err := os.OpenFile(cdLogFile, os.O_CREATE|os.O_TRUNC|os.O_RDWR|os.O_SYNC, 0777)
-	if err != nil {
-		c.Fatalf("Failed to create master containerd log file: %v", err)
-	}
-	cs.logFile = f
+func (cs *ContainerdSuite) RestartDaemon(kill bool) error {
+	cs.StopDaemon(kill)
 
 	cd := exec.Command("containerd", "--debug",
-		"--state-dir", cdStateDir,
-		"--listen", cdGRPCSock,
+		"--state-dir", cs.stateDir,
+		"--listen", cs.grpcSocket,
 		"--metrics-interval", "0m0s",
-		"--runtime-args", fmt.Sprintf("--root=%s", filepath.Join(cs.cwd, cdStateDir, "runc")),
+		"--runtime-args", fmt.Sprintf("--root=%s", filepath.Join(cs.cwd, cs.outputDir, "runc")),
 	)
-	cd.Stderr = f
-	cd.Stdout = f
+	cd.Stderr = cs.logFile
+	cd.Stdout = cs.logFile
 
 	if err := cd.Start(); err != nil {
-		c.Fatalf("Unable to start the master containerd: %v", err)
+		return err
 	}
-
-	cs.outputDir = od
 	cs.cd = cd
-	cs.syncChild = make(chan error)
-	if err := cs.getClient(cdGRPCSock); err != nil {
+
+	if err := cs.getClient(cs.grpcSocket); err != nil {
 		// Kill the daemon
 		cs.cd.Process.Kill()
-		c.Fatalf("Failed to connect to daemon: %v", err)
+		return err
 	}
 
 	// Monitor events
-	events, err := cs.grpcClient.Events(context.Background(), &types.EventsRequest{})
+	events, err := cs.grpcClient.Events(context.Background(), &types.EventsRequest{Timestamp: cs.lastEventTs})
 	if err != nil {
-		c.Fatalf("Could not register containerd event handler: %v", err)
+		return err
 	}
 
 	go cs.ContainerdEventsHandler(events)
@@ -170,6 +169,53 @@ func (cs *ContainerdSuite) SetUpSuite(c *check.C) {
 	go func() {
 		cs.syncChild <- cd.Wait()
 	}()
+
+	return nil
+}
+
+func (cs *ContainerdSuite) SetUpSuite(c *check.C) {
+	bundleMap = make(map[string]Bundle)
+	cs.eventFilters = make(map[string]func(event *types.Event))
+
+	// Get working directory for tests
+	wd := utils.GetTestOutDir()
+	if err := os.Chdir(wd); err != nil {
+		c.Fatalf("Could not change working directory: %v", err)
+	}
+	cs.cwd = wd
+
+	// Clean old bundles
+	os.RemoveAll(utils.BundlesRoot)
+
+	// Ensure the oci bundles directory exists
+	if err := os.MkdirAll(utils.BundlesRoot, 0755); err != nil {
+		c.Fatalf("Failed to create bundles directory: %v", err)
+	}
+
+	// Generate the reference spec
+	if err := utils.GenerateReferenceSpecs(utils.BundlesRoot); err != nil {
+		c.Fatalf("Unable to generate OCI reference spec: %v", err)
+	}
+
+	// Create our output directory
+	cs.outputDir = fmt.Sprintf(utils.OutputDirFormat, time.Now().Format("2006-01-02_150405.000000"))
+
+	cs.stateDir = filepath.Join(cs.outputDir, "containerd-master")
+	if err := os.MkdirAll(cs.stateDir, 0755); err != nil {
+		c.Fatalf("Unable to created output directory '%s': %v", cs.stateDir, err)
+	}
+
+	cs.grpcSocket = "unix://" + filepath.Join(cs.outputDir, "containerd-master", "containerd.sock")
+	cdLogFile := filepath.Join(cs.outputDir, "containerd-master", "containerd.log")
+
+	f, err := os.OpenFile(cdLogFile, os.O_CREATE|os.O_TRUNC|os.O_RDWR|os.O_SYNC, 0777)
+	if err != nil {
+		c.Fatalf("Failed to create master containerd log file: %v", err)
+	}
+	cs.logFile = f
+
+	cs.syncChild = make(chan error)
+	cs.RestartDaemon(false)
 }
 
 func (cs *ContainerdSuite) TearDownSuite(c *check.C) {
@@ -220,13 +266,13 @@ func (cs *ContainerdSuite) TearDownTest(c *check.C) {
 		})
 
 		if err := cs.KillContainer(ctr.Id); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to cleanup leftover test containers: %v", err)
+			fmt.Fprintf(os.Stderr, "Failed to cleanup leftover test containers: %v\n", err)
 		}
 
 		select {
 		case <-ch:
 		case <-time.After(3 * time.Second):
-			fmt.Fprintf(os.Stderr, "TearDownTest: Containerd %v didn't die after 3 seconds", ctr.Id)
+			fmt.Fprintf(os.Stderr, "TearDownTest: Containerd %v didn't die after 3 seconds\n", ctr.Id)
 		}
 	}
 }

@@ -10,14 +10,24 @@ import (
 	netcontext "golang.org/x/net/context"
 )
 
+var checkpointSubCmds = []cli.Command{
+	listCheckpointCommand,
+	createCheckpointCommand,
+	deleteCheckpointCommand,
+}
+
 var checkpointCommand = cli.Command{
-	Name:  "checkpoints",
-	Usage: "list all checkpoints",
-	Subcommands: []cli.Command{
-		listCheckpointCommand,
-		createCheckpointCommand,
-		deleteCheckpointCommand,
-	},
+	Name:        "checkpoints",
+	Usage:       "list all checkpoints",
+	ArgsUsage:   "COMMAND [arguments...]",
+	Subcommands: checkpointSubCmds,
+	Description: func() string {
+		desc := "\n    COMMAND:\n"
+		for _, command := range checkpointSubCmds {
+			desc += fmt.Sprintf("    %-10.10s%s\n", command.Name, command.Usage)
+		}
+		return desc
+	}(),
 	Action: listCheckpoints,
 }
 
@@ -25,6 +35,13 @@ var listCheckpointCommand = cli.Command{
 	Name:   "list",
 	Usage:  "list all checkpoints for a container",
 	Action: listCheckpoints,
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:  "checkpoint-dir",
+			Value: "",
+			Usage: "path to checkpoint directory",
+		},
+	},
 }
 
 func listCheckpoints(context *cli.Context) {
@@ -33,10 +50,11 @@ func listCheckpoints(context *cli.Context) {
 		id = context.Args().First()
 	)
 	if id == "" {
-		fatal("container id cannot be empty", 1)
+		fatal("container id cannot be empty", ExitStatusMissingArg)
 	}
 	resp, err := c.ListCheckpoint(netcontext.Background(), &types.ListCheckpointRequest{
-		Id: id,
+		Id:            id,
+		CheckpointDir: context.String("checkpoint-dir"),
 	})
 	if err != nil {
 		fatal(err.Error(), 1)
@@ -61,7 +79,7 @@ var createCheckpointCommand = cli.Command{
 		},
 		cli.BoolFlag{
 			Name:  "unix-sockets",
-			Usage: "perist unix sockets",
+			Usage: "persist unix sockets",
 		},
 		cli.BoolFlag{
 			Name:  "exit",
@@ -71,6 +89,15 @@ var createCheckpointCommand = cli.Command{
 			Name:  "shell",
 			Usage: "checkpoint shell jobs",
 		},
+		cli.StringFlag{
+			Name:  "checkpoint-dir",
+			Value: "",
+			Usage: "directory to store checkpoints",
+		},
+		cli.StringSliceFlag{
+			Name:  "empty-ns",
+			Usage: "create a namespace, but don't restore its properties",
+		},
 	},
 	Action: func(context *cli.Context) {
 		var (
@@ -78,21 +105,27 @@ var createCheckpointCommand = cli.Command{
 			name        = context.Args().Get(1)
 		)
 		if containerID == "" {
-			fatal("container id at cannot be empty", 1)
+			fatal("container id at cannot be empty", ExitStatusMissingArg)
 		}
 		if name == "" {
-			fatal("checkpoint name cannot be empty", 1)
+			fatal("checkpoint name cannot be empty", ExitStatusMissingArg)
 		}
 		c := getClient(context)
+		checkpoint := types.Checkpoint{
+			Name:        name,
+			Exit:        context.Bool("exit"),
+			Tcp:         context.Bool("tcp"),
+			Shell:       context.Bool("shell"),
+			UnixSockets: context.Bool("unix-sockets"),
+		}
+
+		emptyNSes := context.StringSlice("empty-ns")
+		checkpoint.EmptyNS = append(checkpoint.EmptyNS, emptyNSes...)
+
 		if _, err := c.CreateCheckpoint(netcontext.Background(), &types.CreateCheckpointRequest{
-			Id: containerID,
-			Checkpoint: &types.Checkpoint{
-				Name:        name,
-				Exit:        context.Bool("exit"),
-				Tcp:         context.Bool("tcp"),
-				Shell:       context.Bool("shell"),
-				UnixSockets: context.Bool("unix-sockets"),
-			},
+			Id:            containerID,
+			CheckpointDir: context.String("checkpoint-dir"),
+			Checkpoint:    &checkpoint,
 		}); err != nil {
 			fatal(err.Error(), 1)
 		}
@@ -102,21 +135,29 @@ var createCheckpointCommand = cli.Command{
 var deleteCheckpointCommand = cli.Command{
 	Name:  "delete",
 	Usage: "delete a container's checkpoint",
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:  "checkpoint-dir",
+			Value: "",
+			Usage: "path to checkpoint directory",
+		},
+	},
 	Action: func(context *cli.Context) {
 		var (
 			containerID = context.Args().Get(0)
 			name        = context.Args().Get(1)
 		)
 		if containerID == "" {
-			fatal("container id at cannot be empty", 1)
+			fatal("container id at cannot be empty", ExitStatusMissingArg)
 		}
 		if name == "" {
-			fatal("checkpoint name cannot be empty", 1)
+			fatal("checkpoint name cannot be empty", ExitStatusMissingArg)
 		}
 		c := getClient(context)
 		if _, err := c.DeleteCheckpoint(netcontext.Background(), &types.DeleteCheckpointRequest{
-			Id:   containerID,
-			Name: name,
+			Id:            containerID,
+			Name:          name,
+			CheckpointDir: context.String("checkpoint-dir"),
 		}); err != nil {
 			fatal(err.Error(), 1)
 		}

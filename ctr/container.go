@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -19,42 +20,62 @@ import (
 	"github.com/docker/containerd/api/grpc/types"
 	"github.com/docker/containerd/specs"
 	"github.com/docker/docker/pkg/term"
+	"github.com/golang/protobuf/ptypes"
 	netcontext "golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/transport"
 )
 
 // TODO: parse flags and pass opts
 func getClient(ctx *cli.Context) types.APIClient {
+	// Parse proto://address form addresses.
+	bindSpec := ctx.GlobalString("address")
+	bindParts := strings.SplitN(bindSpec, "://", 2)
+	if len(bindParts) != 2 {
+		fatal(fmt.Sprintf("bad bind address format %s, expected proto://address", bindSpec), 1)
+	}
+
 	// reset the logger for grpc to log to dev/null so that it does not mess with our stdio
 	grpclog.SetLogger(log.New(ioutil.Discard, "", log.LstdFlags))
 	dialOpts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithTimeout(ctx.GlobalDuration("conn-timeout"))}
 	dialOpts = append(dialOpts,
 		grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
-			return net.DialTimeout("unix", addr, timeout)
+			return net.DialTimeout(bindParts[0], bindParts[1], timeout)
 		},
 		))
-	conn, err := grpc.Dial(ctx.GlobalString("address"), dialOpts...)
+	conn, err := grpc.Dial(bindSpec, dialOpts...)
 	if err != nil {
 		fatal(err.Error(), 1)
 	}
 	return types.NewAPIClient(conn)
 }
 
+var contSubCmds = []cli.Command{
+	execCommand,
+	killCommand,
+	listCommand,
+	pauseCommand,
+	resumeCommand,
+	startCommand,
+	stateCommand,
+	statsCommand,
+	watchCommand,
+	updateCommand,
+}
+
 var containersCommand = cli.Command{
-	Name:  "containers",
-	Usage: "interact with running containers",
-	Subcommands: []cli.Command{
-		execCommand,
-		killCommand,
-		listCommand,
-		pauseCommand,
-		resumeCommand,
-		startCommand,
-		statsCommand,
-		watchCommand,
-		updateCommand,
-	},
+	Name:        "containers",
+	Usage:       "interact with running containers",
+	ArgsUsage:   "COMMAND [arguments...]",
+	Subcommands: contSubCmds,
+	Description: func() string {
+		desc := "\n    COMMAND:\n"
+		for _, command := range contSubCmds {
+			desc += fmt.Sprintf("    %-10.10s%s\n", command.Name, command.Usage)
+		}
+		return desc
+	}(),
 	Action: listContainers,
 }
 
@@ -107,13 +128,19 @@ func listContainers(context *cli.Context) {
 }
 
 var startCommand = cli.Command{
-	Name:  "start",
-	Usage: "start a container",
+	Name:      "start",
+	Usage:     "start a container",
+	ArgsUsage: "ID BundlePath",
 	Flags: []cli.Flag{
 		cli.StringFlag{
 			Name:  "checkpoint,c",
 			Value: "",
 			Usage: "checkpoint to start the container from",
+		},
+		cli.StringFlag{
+			Name:  "checkpoint-dir",
+			Value: "",
+			Usage: "path to checkpoint directory",
 		},
 		cli.BoolFlag{
 			Name:  "attach,a",
@@ -128,6 +155,16 @@ var startCommand = cli.Command{
 			Name:  "no-pivot",
 			Usage: "do not use pivot root",
 		},
+		cli.StringFlag{
+			Name:  "runtime,r",
+			Value: "runc",
+			Usage: "name or path of the OCI compliant runtime to use when executing containers",
+		},
+		cli.StringSliceFlag{
+			Name:  "runtime-args",
+			Value: &cli.StringSlice{},
+			Usage: "specify additional runtime args",
+		},
 	},
 	Action: func(context *cli.Context) {
 		var (
@@ -135,16 +172,21 @@ var startCommand = cli.Command{
 			path = context.Args().Get(1)
 		)
 		if path == "" {
-			fatal("bundle path cannot be empty", 1)
+			fatal("bundle path cannot be empty", ExitStatusMissingArg)
 		}
 		if id == "" {
-			fatal("container id cannot be empty", 1)
+			fatal("container id cannot be empty", ExitStatusMissingArg)
 		}
 		bpath, err := filepath.Abs(path)
 		if err != nil {
 			fatal(fmt.Sprintf("cannot get the absolute path of the bundle: %v", err), 1)
 		}
 		s, err := createStdio()
+		defer func() {
+			if s.stdin != "" {
+				os.RemoveAll(filepath.Dir(s.stdin))
+			}
+		}()
 		if err != nil {
 			fatal(err.Error(), 1)
 		}
@@ -153,14 +195,17 @@ var startCommand = cli.Command{
 			tty                  bool
 			c                    = getClient(context)
 			r                    = &types.CreateContainerRequest{
-				Id:          id,
-				BundlePath:  bpath,
-				Checkpoint:  context.String("checkpoint"),
-				Stdin:       s.stdin,
-				Stdout:      s.stdout,
-				Stderr:      s.stderr,
-				Labels:      context.StringSlice("label"),
-				NoPivotRoot: context.Bool("no-pivot"),
+				Id:            id,
+				BundlePath:    bpath,
+				Checkpoint:    context.String("checkpoint"),
+				CheckpointDir: context.String("checkpoint-dir"),
+				Stdin:         s.stdin,
+				Stdout:        s.stdout,
+				Stderr:        s.stderr,
+				Labels:        context.StringSlice("label"),
+				NoPivotRoot:   context.Bool("no-pivot"),
+				Runtime:       context.String("runtime"),
+				RuntimeArgs:   context.StringSlice("runtime-args"),
 			}
 		)
 		restoreAndCloseStdin = func() {
@@ -325,7 +370,7 @@ var pauseCommand = cli.Command{
 	Action: func(context *cli.Context) {
 		id := context.Args().First()
 		if id == "" {
-			fatal("container id cannot be empty", 1)
+			fatal("container id cannot be empty", ExitStatusMissingArg)
 		}
 		c := getClient(context)
 		_, err := c.UpdateContainer(netcontext.Background(), &types.UpdateContainerRequest{
@@ -345,7 +390,7 @@ var resumeCommand = cli.Command{
 	Action: func(context *cli.Context) {
 		id := context.Args().First()
 		if id == "" {
-			fatal("container id cannot be empty", 1)
+			fatal("container id cannot be empty", ExitStatusMissingArg)
 		}
 		c := getClient(context)
 		_, err := c.UpdateContainer(netcontext.Background(), &types.UpdateContainerRequest{
@@ -377,7 +422,7 @@ var killCommand = cli.Command{
 	Action: func(context *cli.Context) {
 		id := context.Args().First()
 		if id == "" {
-			fatal("container id cannot be empty", 1)
+			fatal("container id cannot be empty", ExitStatusMissingArg)
 		}
 		c := getClient(context)
 		if _, err := c.Signal(netcontext.Background(), &types.SignalRequest{
@@ -444,6 +489,11 @@ var execCommand = cli.Command{
 			},
 		}
 		s, err := createStdio()
+		defer func() {
+			if s.stdin != "" {
+				os.RemoveAll(filepath.Dir(s.stdin))
+			}
+		}()
 		if err != nil {
 			fatal(err.Error(), 1)
 		}
@@ -528,29 +578,46 @@ var statsCommand = cli.Command{
 	},
 }
 
+func getUpdateCommandInt64Flag(context *cli.Context, name string) uint64 {
+	str := context.String(name)
+	if str == "" {
+		return 0
+	}
+
+	val, err := strconv.ParseUint(str, 0, 64)
+	if err != nil {
+		fatal(err.Error(), 1)
+	}
+
+	return val
+}
+
 var updateCommand = cli.Command{
 	Name:  "update",
 	Usage: "update a containers resources",
 	Flags: []cli.Flag{
-		cli.IntFlag{
+		cli.StringFlag{
 			Name: "memory-limit",
 		},
-		cli.IntFlag{
+		cli.StringFlag{
 			Name: "memory-reservation",
 		},
-		cli.IntFlag{
+		cli.StringFlag{
 			Name: "memory-swap",
 		},
-		cli.IntFlag{
+		cli.StringFlag{
 			Name: "cpu-quota",
 		},
-		cli.IntFlag{
+		cli.StringFlag{
 			Name: "cpu-period",
 		},
-		cli.IntFlag{
+		cli.StringFlag{
 			Name: "kernel-limit",
 		},
-		cli.IntFlag{
+		cli.StringFlag{
+			Name: "kernel-tcp-limit",
+		},
+		cli.StringFlag{
 			Name: "blkio-weight",
 		},
 		cli.StringFlag{
@@ -565,15 +632,17 @@ var updateCommand = cli.Command{
 			Id: context.Args().First(),
 		}
 		req.Resources = &types.UpdateResource{}
-		req.Resources.MemoryLimit = uint32(context.Int("memory-limit"))
-		req.Resources.MemoryReservation = uint32(context.Int("memory-reservation"))
-		req.Resources.MemorySwap = uint32(context.Int("memory-swap"))
-		req.Resources.BlkioWeight = uint32(context.Int("blkio-weight"))
-		req.Resources.CpuPeriod = uint32(context.Int("cpu-period"))
-		req.Resources.CpuQuota = uint32(context.Int("cpu-quota"))
-		req.Resources.CpuShares = uint32(context.Int("cpu-shares"))
+		req.Resources.MemoryLimit = getUpdateCommandInt64Flag(context, "memory-limit")
+		req.Resources.MemoryReservation = getUpdateCommandInt64Flag(context, "memory-reservation")
+		req.Resources.MemorySwap = getUpdateCommandInt64Flag(context, "memory-swap")
+		req.Resources.BlkioWeight = getUpdateCommandInt64Flag(context, "blkio-weight")
+		req.Resources.CpuPeriod = getUpdateCommandInt64Flag(context, "cpu-period")
+		req.Resources.CpuQuota = getUpdateCommandInt64Flag(context, "cpu-quota")
+		req.Resources.CpuShares = getUpdateCommandInt64Flag(context, "cpu-shares")
 		req.Resources.CpusetCpus = context.String("cpuset-cpus")
 		req.Resources.CpusetMems = context.String("cpuset-mems")
+		req.Resources.KernelMemoryLimit = getUpdateCommandInt64Flag(context, "kernel-limit")
+		req.Resources.KernelTCPMemoryLimit = getUpdateCommandInt64Flag(context, "kernel-tcp-limit")
 		c := getClient(context)
 		if _, err := c.UpdateContainer(netcontext.Background(), req); err != nil {
 			fatal(err.Error(), 1)
@@ -582,15 +651,25 @@ var updateCommand = cli.Command{
 }
 
 func waitForExit(c types.APIClient, events types.API_EventsClient, id, pid string, closer func()) {
-	timestamp := uint64(time.Now().Unix())
+	timestamp := time.Now()
 	for {
 		e, err := events.Recv()
 		if err != nil {
+			if grpc.ErrorDesc(err) == transport.ErrConnClosing.Desc {
+				closer()
+				os.Exit(128 + int(syscall.SIGHUP))
+			}
 			time.Sleep(1 * time.Second)
-			events, _ = c.Events(netcontext.Background(), &types.EventsRequest{Timestamp: timestamp})
+			tsp, err := ptypes.TimestampProto(timestamp)
+			if err != nil {
+				closer()
+				fmt.Fprintf(os.Stderr, "%s", err.Error())
+				os.Exit(1)
+			}
+			events, _ = c.Events(netcontext.Background(), &types.EventsRequest{Timestamp: tsp})
 			continue
 		}
-		timestamp = e.Timestamp
+		timestamp, err = ptypes.Timestamp(e.Timestamp)
 		if e.Id == id && e.Type == "exit" && e.Pid == pid {
 			closer()
 			os.Exit(int(e.Status))
