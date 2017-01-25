@@ -7,6 +7,8 @@ import (
 	"github.com/docker/containerd/specs"
 )
 
+// AddProcessTask holds everything necessary to add a process to a
+// container
 type AddProcessTask struct {
 	baseTask
 	ID            string
@@ -35,7 +37,7 @@ func (s *Supervisor) addProcess(t *AddProcessTask) error {
 	t.StartResponse <- StartResponse{}
 	s.notifySubscribers(Event{
 		Timestamp: time.Now(),
-		Type:      "start-process",
+		Type:      StateStartProcess,
 		PID:       t.PID,
 		ID:        t.ID,
 	})

@@ -5,16 +5,18 @@ import (
 	"syscall"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/docker/containerd/archutils"
 	"github.com/docker/containerd/runtime"
 )
 
+// NewMonitor starts a new process monitor and returns it
 func NewMonitor() (*Monitor, error) {
 	m := &Monitor{
 		receivers: make(map[int]interface{}),
 		exits:     make(chan runtime.Process, 1024),
 		ooms:      make(chan string, 1024),
 	}
-	fd, err := syscall.EpollCreate1(0)
+	fd, err := archutils.EpollCreate1(0)
 	if err != nil {
 		return nil, err
 	}
@@ -23,6 +25,7 @@ func NewMonitor() (*Monitor, error) {
 	return m, nil
 }
 
+// Monitor represents a runtime.Process monitor
 type Monitor struct {
 	m         sync.Mutex
 	receivers map[int]interface{}
@@ -31,14 +34,17 @@ type Monitor struct {
 	epollFd   int
 }
 
+// Exits returns the channel used to notify of a process exit
 func (m *Monitor) Exits() chan runtime.Process {
 	return m.exits
 }
 
+// OOMs returns the channel used to notify of a container exit due to OOM
 func (m *Monitor) OOMs() chan string {
 	return m.ooms
 }
 
+// Monitor adds a process to the list of the one being monitored
 func (m *Monitor) Monitor(p runtime.Process) error {
 	m.m.Lock()
 	defer m.m.Unlock()
@@ -47,7 +53,7 @@ func (m *Monitor) Monitor(p runtime.Process) error {
 		Fd:     int32(fd),
 		Events: syscall.EPOLLHUP,
 	}
-	if err := syscall.EpollCtl(m.epollFd, syscall.EPOLL_CTL_ADD, fd, &event); err != nil {
+	if err := archutils.EpollCtl(m.epollFd, syscall.EPOLL_CTL_ADD, fd, &event); err != nil {
 		return err
 	}
 	EpollFdCounter.Inc(1)
@@ -55,6 +61,7 @@ func (m *Monitor) Monitor(p runtime.Process) error {
 	return nil
 }
 
+// MonitorOOM adds a container to the list of the ones monitored for OOM
 func (m *Monitor) MonitorOOM(c runtime.Container) error {
 	m.m.Lock()
 	defer m.m.Unlock()
@@ -67,7 +74,7 @@ func (m *Monitor) MonitorOOM(c runtime.Container) error {
 		Fd:     int32(fd),
 		Events: syscall.EPOLLHUP | syscall.EPOLLIN,
 	}
-	if err := syscall.EpollCtl(m.epollFd, syscall.EPOLL_CTL_ADD, fd, &event); err != nil {
+	if err := archutils.EpollCtl(m.epollFd, syscall.EPOLL_CTL_ADD, fd, &event); err != nil {
 		return err
 	}
 	EpollFdCounter.Inc(1)
@@ -75,6 +82,7 @@ func (m *Monitor) MonitorOOM(c runtime.Container) error {
 	return nil
 }
 
+// Close cleans up resources allocated by NewMonitor()
 func (m *Monitor) Close() error {
 	return syscall.Close(m.epollFd)
 }
@@ -82,7 +90,7 @@ func (m *Monitor) Close() error {
 func (m *Monitor) start() {
 	var events [128]syscall.EpollEvent
 	for {
-		n, err := syscall.EpollWait(m.epollFd, events[:], -1)
+		n, err := archutils.EpollWait(m.epollFd, events[:], -1)
 		if err != nil {
 			if err == syscall.EINTR {
 				continue

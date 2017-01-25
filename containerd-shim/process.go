@@ -24,43 +24,46 @@ type checkpoint struct {
 	Created time.Time `json:"created"`
 	// Name is the name of the checkpoint
 	Name string `json:"name"`
-	// Tcp checkpoints open tcp connections
-	Tcp bool `json:"tcp"`
+	// TCP checkpoints open tcp connections
+	TCP bool `json:"tcp"`
 	// UnixSockets persists unix sockets in the checkpoint
 	UnixSockets bool `json:"unixSockets"`
 	// Shell persists tty sessions in the checkpoint
 	Shell bool `json:"shell"`
 	// Exit exits the container after the checkpoint is finished
 	Exit bool `json:"exit"`
+	// EmptyNS tells CRIU not to restore a particular namespace
+	EmptyNS []string `json:"emptyNS,omitempty"`
 }
 
 type processState struct {
 	specs.ProcessSpec
-	Exec        bool     `json:"exec"`
-	Stdin       string   `json:"containerdStdin"`
-	Stdout      string   `json:"containerdStdout"`
-	Stderr      string   `json:"containerdStderr"`
-	RuntimeArgs []string `json:"runtimeArgs"`
-	NoPivotRoot bool     `json:"noPivotRoot"`
-	Checkpoint  string   `json:"checkpoint"`
-	RootUID     int      `json:"rootUID"`
-	RootGID     int      `json:"rootGID"`
+	Exec           bool     `json:"exec"`
+	Stdin          string   `json:"containerdStdin"`
+	Stdout         string   `json:"containerdStdout"`
+	Stderr         string   `json:"containerdStderr"`
+	RuntimeArgs    []string `json:"runtimeArgs"`
+	NoPivotRoot    bool     `json:"noPivotRoot"`
+	CheckpointPath string   `json:"checkpoint"`
+	RootUID        int      `json:"rootUID"`
+	RootGID        int      `json:"rootGID"`
 }
 
 type process struct {
 	sync.WaitGroup
-	id           string
-	bundle       string
-	stdio        *stdio
-	exec         bool
-	containerPid int
-	checkpoint   *checkpoint
-	shimIO       *IO
-	stdinCloser  io.Closer
-	console      *os.File
-	consolePath  string
-	state        *processState
-	runtime      string
+	id             string
+	bundle         string
+	stdio          *stdio
+	exec           bool
+	containerPid   int
+	checkpoint     *checkpoint
+	checkpointPath string
+	shimIO         *IO
+	stdinCloser    io.Closer
+	console        *os.File
+	consolePath    string
+	state          *processState
+	runtime        string
 }
 
 func newProcess(id, bundle, runtimeName string) (*process, error) {
@@ -74,12 +77,13 @@ func newProcess(id, bundle, runtimeName string) (*process, error) {
 		return nil, err
 	}
 	p.state = s
-	if s.Checkpoint != "" {
-		cpt, err := loadCheckpoint(bundle, s.Checkpoint)
+	if s.CheckpointPath != "" {
+		cpt, err := loadCheckpoint(s.CheckpointPath)
 		if err != nil {
 			return nil, err
 		}
 		p.checkpoint = cpt
+		p.checkpointPath = s.CheckpointPath
 	}
 	if err := p.openIO(); err != nil {
 		return nil, err
@@ -100,8 +104,8 @@ func loadProcess() (*processState, error) {
 	return &s, nil
 }
 
-func loadCheckpoint(bundle, name string) (*checkpoint, error) {
-	f, err := os.Open(filepath.Join(bundle, "checkpoints", name, "config.json"))
+func loadCheckpoint(checkpointPath string) (*checkpoint, error) {
+	f, err := os.Open(filepath.Join(checkpointPath, "config.json"))
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +117,7 @@ func loadCheckpoint(bundle, name string) (*checkpoint, error) {
 	return &cpt, nil
 }
 
-func (p *process) start() error {
+func (p *process) create() error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -125,12 +129,15 @@ func (p *process) start() error {
 	}, p.state.RuntimeArgs...)
 	if p.state.Exec {
 		args = append(args, "exec",
+			"-d",
 			"--process", filepath.Join(cwd, "process.json"),
 			"--console", p.consolePath,
 		)
 	} else if p.checkpoint != nil {
 		args = append(args, "restore",
-			"--image-path", filepath.Join(p.bundle, "checkpoints", p.checkpoint.Name),
+			"-d",
+			"--image-path", p.checkpointPath,
+			"--work-path", filepath.Join(p.checkpointPath, "criu.work", "restore-"+time.Now().Format(time.RFC3339)),
 		)
 		add := func(flags ...string) {
 			args = append(args, flags...)
@@ -138,7 +145,7 @@ func (p *process) start() error {
 		if p.checkpoint.Shell {
 			add("--shell-job")
 		}
-		if p.checkpoint.Tcp {
+		if p.checkpoint.TCP {
 			add("--tcp-established")
 		}
 		if p.checkpoint.UnixSockets {
@@ -147,8 +154,12 @@ func (p *process) start() error {
 		if p.state.NoPivotRoot {
 			add("--no-pivot")
 		}
+		for _, ns := range p.checkpoint.EmptyNS {
+			add("--empty-ns", ns)
+		}
+
 	} else {
-		args = append(args, "start",
+		args = append(args, "create",
 			"--bundle", p.bundle,
 			"--console", p.consolePath,
 		)
@@ -157,7 +168,6 @@ func (p *process) start() error {
 		}
 	}
 	args = append(args,
-		"-d",
 		"--pid-file", filepath.Join(cwd, "pid"),
 		p.id,
 	)
@@ -166,11 +176,9 @@ func (p *process) start() error {
 	cmd.Stdin = p.stdio.stdin
 	cmd.Stdout = p.stdio.stdout
 	cmd.Stderr = p.stdio.stderr
-	// set the parent death signal to SIGKILL so that if the shim dies the container
-	// process also dies
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Pdeathsig: syscall.SIGKILL,
-	}
+	// Call out to setPDeathSig to set SysProcAttr as elements are platform specific
+	cmd.SysProcAttr = setPDeathSig()
+
 	if err := cmd.Start(); err != nil {
 		if exErr, ok := err.(*exec.Error); ok {
 			if exErr.Err == exec.ErrNotFound || exErr.Err == os.ErrNotExist {
@@ -205,7 +213,9 @@ func (p *process) pid() int {
 
 func (p *process) delete() error {
 	if !p.state.Exec {
-		out, err := exec.Command(p.runtime, "delete", p.id).CombinedOutput()
+		cmd := exec.Command(p.runtime, append(p.state.RuntimeArgs, "delete", p.id)...)
+		cmd.SysProcAttr = setPDeathSig()
+		out, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("%s: %v", out, err)
 		}
@@ -292,6 +302,7 @@ func (p *process) openIO() error {
 	return nil
 }
 
+// IO holds all 3 standard io Reader/Writer (stdin,stdout,stderr)
 type IO struct {
 	Stdin  io.WriteCloser
 	Stdout io.ReadCloser
@@ -328,7 +339,7 @@ func (p *process) initializeIO(rootuid int) (i *IO, err error) {
 	}
 	fds = append(fds, r.Fd(), w.Fd())
 	p.stdio.stderr, i.Stderr = w, r
-	// change ownership of the pipes incase we are in a user namespace
+	// change ownership of the pipes in case we are in a user namespace
 	for _, fd := range fds {
 		if err := syscall.Fchown(int(fd), rootuid, rootuid); err != nil {
 			return nil, err

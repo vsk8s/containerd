@@ -6,6 +6,7 @@ import (
 	"github.com/docker/containerd/runtime"
 )
 
+// UpdateTask holds needed parameters to update a container resource constraints
 type UpdateTask struct {
 	baseTask
 	ID        string
@@ -27,7 +28,7 @@ func (s *Supervisor) updateContainer(t *UpdateTask) error {
 			}
 			s.notifySubscribers(Event{
 				ID:        t.ID,
-				Type:      "resume",
+				Type:      StateResume,
 				Timestamp: time.Now(),
 			})
 		case runtime.Paused:
@@ -36,7 +37,7 @@ func (s *Supervisor) updateContainer(t *UpdateTask) error {
 			}
 			s.notifySubscribers(Event{
 				ID:        t.ID,
-				Type:      "pause",
+				Type:      StatePause,
 				Timestamp: time.Now(),
 			})
 		default:
@@ -50,6 +51,8 @@ func (s *Supervisor) updateContainer(t *UpdateTask) error {
 	return nil
 }
 
+// UpdateProcessTask holds needed parameters to update a container
+// process terminal size or close its stdin
 type UpdateProcessTask struct {
 	baseTask
 	ID         string
