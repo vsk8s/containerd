@@ -1,9 +1,9 @@
-containerd (0.2.1~git20160806.6.0366d7e~ds1-1) UNRELEASED; urgency=medium
+containerd (0.2.3~git20161117.78.03e5862~ds1-1) UNRELEASED; urgency=medium
 
   * New upstream version.
   * Regenerate proto files on each rebuild.
 
- -- Tim Potter <tpot@hpe.com>  Wed, 25 Jan 2017 15:47:41 +1100
+ -- Tim Potter <tpot@hpe.com>  Fri, 27 Jan 2017 12:30:54 +1100
 
 containerd (0.2.1~ds1-3) unstable; urgency=medium
 
