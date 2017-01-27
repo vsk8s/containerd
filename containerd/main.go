@@ -76,7 +76,7 @@ var daemonFlags = []cli.Flag{
 	},
 	cli.DurationFlag{
 		Name:  "start-timeout",
-		Value: 15 * time.Second,
+		Value: 30 * time.Second,
 		Usage: "timeout duration for waiting on a container to start before it is killed",
 	},
 	cli.IntFlag{
@@ -212,7 +212,7 @@ func startServer(protocol, address string, sv *supervisor.Supervisor) (*grpc.Ser
 	l := sockets[0]
 	s := grpc.NewServer()
 	types.RegisterAPIServer(s, server.NewServer(sv))
-	healthServer := health.NewHealthServer()
+	healthServer := health.NewServer()
 	grpc_health_v1.RegisterHealthServer(s, healthServer)
 
 	go func() {
@@ -222,15 +222,6 @@ func startServer(protocol, address string, sv *supervisor.Supervisor) (*grpc.Ser
 		}
 	}()
 	return s, nil
-}
-
-// getDefaultID returns the hostname for the instance host
-func getDefaultID() string {
-	hostname, err := os.Hostname()
-	if err != nil {
-		panic(err)
-	}
-	return hostname
 }
 
 func checkLimits() error {

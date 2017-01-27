@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 	"syscall"
@@ -187,8 +188,13 @@ func (p *process) create() error {
 		}
 		return err
 	}
-	p.stdio.stdout.Close()
-	p.stdio.stderr.Close()
+	if runtime.GOOS != "solaris" {
+		// Since current logic dictates that we need a pid at the end of p.create
+		// we need to call runtime start as well on Solaris hence we need the
+		// pipes to stay open.
+		p.stdio.stdout.Close()
+		p.stdio.stderr.Close()
+	}
 	if err := cmd.Wait(); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			return errRuntime
@@ -220,85 +226,6 @@ func (p *process) delete() error {
 			return fmt.Errorf("%s: %v", out, err)
 		}
 	}
-	return nil
-}
-
-// openIO opens the pre-created fifo's for use with the container
-// in RDWR so that they remain open if the other side stops listening
-func (p *process) openIO() error {
-	p.stdio = &stdio{}
-	var (
-		uid = p.state.RootUID
-		gid = p.state.RootGID
-	)
-	go func() {
-		if stdinCloser, err := os.OpenFile(p.state.Stdin, syscall.O_WRONLY, 0); err == nil {
-			p.stdinCloser = stdinCloser
-		}
-	}()
-
-	if p.state.Terminal {
-		master, console, err := newConsole(uid, gid)
-		if err != nil {
-			return err
-		}
-		p.console = master
-		p.consolePath = console
-		stdin, err := os.OpenFile(p.state.Stdin, syscall.O_RDONLY, 0)
-		if err != nil {
-			return err
-		}
-		go io.Copy(master, stdin)
-		stdout, err := os.OpenFile(p.state.Stdout, syscall.O_RDWR, 0)
-		if err != nil {
-			return err
-		}
-		p.Add(1)
-		go func() {
-			io.Copy(stdout, master)
-			master.Close()
-			p.Done()
-		}()
-		return nil
-	}
-	i, err := p.initializeIO(uid)
-	if err != nil {
-		return err
-	}
-	p.shimIO = i
-	// non-tty
-	for name, dest := range map[string]func(f *os.File){
-		p.state.Stdout: func(f *os.File) {
-			p.Add(1)
-			go func() {
-				io.Copy(f, i.Stdout)
-				p.Done()
-			}()
-		},
-		p.state.Stderr: func(f *os.File) {
-			p.Add(1)
-			go func() {
-				io.Copy(f, i.Stderr)
-				p.Done()
-			}()
-		},
-	} {
-		f, err := os.OpenFile(name, syscall.O_RDWR, 0)
-		if err != nil {
-			return err
-		}
-		dest(f)
-	}
-
-	f, err := os.OpenFile(p.state.Stdin, syscall.O_RDONLY, 0)
-	if err != nil {
-		return err
-	}
-	go func() {
-		io.Copy(i.Stdin, f)
-		i.Stdin.Close()
-	}()
-
 	return nil
 }
 

@@ -89,7 +89,21 @@ func (c *container) OOM() (OOM, error) {
 	// ourself
 	root = strings.TrimPrefix(root, hostRoot)
 
-	return c.getMemeoryEventFD(filepath.Join(mountpoint, root))
+	return c.getMemoryEventFD(filepath.Join(mountpoint, root))
+}
+
+func (c *container) Pids() ([]int, error) {
+	var pids []int
+	args := c.runtimeArgs
+	args = append(args, "ps", "--format=json", c.id)
+	out, err := exec.Command(c.runtime, args...).CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("%s: %q", err.Error(), out)
+	}
+	if err := json.Unmarshal(out, &pids); err != nil {
+		return nil, err
+	}
+	return pids, nil
 }
 
 func u64Ptr(i uint64) *uint64 { return &i }
@@ -150,25 +164,23 @@ func getRootIDs(s *specs.Spec) (int, int, error) {
 	return uid, gid, nil
 }
 
-func (c *container) getMemeoryEventFD(root string) (*oom, error) {
+func (c *container) getMemoryEventFD(root string) (*oom, error) {
 	f, err := os.Open(filepath.Join(root, "memory.oom_control"))
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 	fd, _, serr := syscall.RawSyscall(syscall.SYS_EVENTFD2, 0, syscall.FD_CLOEXEC, 0)
 	if serr != 0 {
-		f.Close()
 		return nil, serr
 	}
 	if err := c.writeEventFD(root, int(f.Fd()), int(fd)); err != nil {
 		syscall.Close(int(fd))
-		f.Close()
 		return nil, err
 	}
 	return &oom{
 		root:    root,
 		id:      c.id,
 		eventfd: int(fd),
-		control: f,
 	}, nil
 }
