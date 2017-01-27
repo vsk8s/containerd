@@ -353,19 +353,6 @@ func (p *process) State() State {
 	return p.state
 }
 
-func (p *process) getPidFromFile() (int, error) {
-	data, err := ioutil.ReadFile(filepath.Join(p.root, "pid"))
-	if err != nil {
-		return -1, err
-	}
-	i, err := strconv.Atoi(string(data))
-	if err != nil {
-		return -1, errInvalidPidInt
-	}
-	p.pid = i
-	return i, nil
-}
-
 func (p *process) readStartTime() (string, error) {
 	return readProcStatField(p.pid, 22)
 }
@@ -381,15 +368,21 @@ func (p *process) saveStartTime() error {
 }
 
 func (p *process) isSameProcess() (bool, error) {
-	// for backward compat assume it's the same if startTime wasn't set
-	if p.startTime == "" {
-		return true, nil
-	}
 	if p.pid == 0 {
 		_, err := p.getPidFromFile()
 		if err != nil {
 			return false, err
 		}
+	}
+
+	// for backward compat assume it's the same if startTime wasn't set
+	if p.startTime == "" {
+		// Sometimes the process dies before we can get the starttime,
+		// check that the process actually exists
+		if err := unix.Kill(p.pid, 0); err != syscall.ESRCH {
+			return true, nil
+		}
+		return false, nil
 	}
 
 	startTime, err := p.readStartTime()

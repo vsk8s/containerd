@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"syscall"
 
 	"github.com/docker/containerd/osutils"
@@ -100,6 +101,9 @@ func start(log *os.File) error {
 			msgC <- m
 		}
 	}()
+	if runtime.GOOS == "solaris" {
+		return nil
+	}
 	var exitShim bool
 	for {
 		select {
@@ -117,14 +121,14 @@ func start(log *os.File) error {
 			}
 			// runtime has exited so the shim can also exit
 			if exitShim {
-				// Let containerd take care of calling the runtime
-				// delete.
-				// This is needed to be done first in order to ensure
-				// that the call to Reap does not block until all
-				// children of the container have died if init was not
-				// started in its own PID namespace.
-				f.Close()
+				// kill all processes in the container incase it was not running in
+				// its own PID namespace
+				p.killAll()
+				// wait for all the processes and IO to finish
 				p.Wait()
+				// delete the container from the runtime
+				p.delete()
+				// the close of the exit fifo will happen when the shim exits
 				return nil
 			}
 		case msg := <-msgC:

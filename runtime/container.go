@@ -14,6 +14,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/containerd/specs"
 	ocs "github.com/opencontainers/runtime-spec/specs-go"
+	"golang.org/x/net/context"
 	"golang.org/x/sys/unix"
 )
 
@@ -24,9 +25,9 @@ type Container interface {
 	// Path returns the path to the bundle
 	Path() string
 	// Start starts the init process of the container
-	Start(checkpointPath string, s Stdio) (Process, error)
+	Start(ctx context.Context, checkpointPath string, s Stdio) (Process, error)
 	// Exec starts another process in an existing container
-	Exec(string, specs.ProcessSpec, Stdio) (Process, error)
+	Exec(context.Context, string, specs.ProcessSpec, Stdio) (Process, error)
 	// Delete removes the container's state and any resources
 	Delete() error
 	// Processes returns all the containers processes that have been added
@@ -186,7 +187,7 @@ func Load(root, id, shimName string, timeout time.Duration) (Container, error) {
 		}
 		p, err := loadProcess(filepath.Join(root, id, pid), pid, c, s)
 		if err != nil {
-			logrus.WithField("id", id).WithField("pid", pid).Debug("containerd: error loading process %s", err)
+			logrus.WithField("id", id).WithField("pid", pid).Debugf("containerd: error loading process %s", err)
 			continue
 		}
 		c.processes[pid] = p
@@ -248,14 +249,17 @@ func (c *container) readSpec() (*specs.Spec, error) {
 }
 
 func (c *container) Delete() error {
-	err := os.RemoveAll(filepath.Join(c.root, c.id))
-
-	args := c.runtimeArgs
-	args = append(args, "delete", c.id)
-	if b, derr := exec.Command(c.runtime, args...).CombinedOutput(); err != nil {
+	var err error
+	args := append(c.runtimeArgs, "delete", c.id)
+	if b, derr := exec.Command(c.runtime, args...).CombinedOutput(); derr != nil {
 		err = fmt.Errorf("%s: %q", derr, string(b))
-	} else if len(b) > 0 {
-		logrus.Debugf("%v %v: %q", c.runtime, args, string(b))
+	}
+	if rerr := os.RemoveAll(filepath.Join(c.root, c.id)); rerr != nil {
+		if err != nil {
+			err = fmt.Errorf("%s; failed to remove %s: %s", err, filepath.Join(c.root, c.id), rerr)
+		} else {
+			err = rerr
+		}
 	}
 	return err
 }
@@ -274,7 +278,7 @@ func (c *container) RemoveProcess(pid string) error {
 }
 
 func (c *container) State() State {
-	proc := c.processes["init"]
+	proc := c.processes[InitProcessID]
 	if proc == nil {
 		return Stopped
 	}
@@ -395,7 +399,7 @@ func (c *container) DeleteCheckpoint(name string, checkpointDir string) error {
 	return os.RemoveAll(filepath.Join(checkpointDir, name))
 }
 
-func (c *container) Start(checkpointPath string, s Stdio) (Process, error) {
+func (c *container) Start(ctx context.Context, checkpointPath string, s Stdio) (Process, error) {
 	processRoot := filepath.Join(c.root, c.id, InitProcessID)
 	if err := os.Mkdir(processRoot, 0755); err != nil {
 		return nil, err
@@ -424,13 +428,13 @@ func (c *container) Start(checkpointPath string, s Stdio) (Process, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := c.createCmd(InitProcessID, cmd, p); err != nil {
+	if err := c.createCmd(ctx, InitProcessID, cmd, p); err != nil {
 		return nil, err
 	}
 	return p, nil
 }
 
-func (c *container) Exec(pid string, pspec specs.ProcessSpec, s Stdio) (pp Process, err error) {
+func (c *container) Exec(ctx context.Context, pid string, pspec specs.ProcessSpec, s Stdio) (pp Process, err error) {
 	processRoot := filepath.Join(c.root, c.id, pid)
 	if err := os.Mkdir(processRoot, 0755); err != nil {
 		return nil, err
@@ -464,13 +468,13 @@ func (c *container) Exec(pid string, pspec specs.ProcessSpec, s Stdio) (pp Proce
 	if err != nil {
 		return nil, err
 	}
-	if err := c.createCmd(pid, cmd, p); err != nil {
+	if err := c.createCmd(ctx, pid, cmd, p); err != nil {
 		return nil, err
 	}
 	return p, nil
 }
 
-func (c *container) createCmd(pid string, cmd *exec.Cmd, p *process) error {
+func (c *container) createCmd(ctx context.Context, pid string, cmd *exec.Cmd, p *process) error {
 	p.cmd = cmd
 	if err := cmd.Start(); err != nil {
 		close(p.cmdDoneCh)
@@ -509,10 +513,25 @@ func (c *container) createCmd(pid string, cmd *exec.Cmd, p *process) error {
 			close(p.cmdDoneCh)
 		}()
 	}()
-	if err := c.waitForCreate(p, cmd); err != nil {
+
+	ch := make(chan error)
+	go func() {
+		if err := c.waitForCreate(p, cmd); err != nil {
+			ch <- err
+			return
+		}
+		c.processes[pid] = p
+		ch <- nil
+	}()
+	select {
+	case <-ctx.Done():
+		cmd.Process.Kill()
+		cmd.Wait()
+		<-ch
+		return ctx.Err()
+	case err := <-ch:
 		return err
 	}
-	c.processes[pid] = p
 	return nil
 }
 
@@ -523,20 +542,6 @@ func hostIDFromMap(id uint32, mp []ocs.IDMapping) int {
 		}
 	}
 	return 0
-}
-
-func (c *container) Pids() ([]int, error) {
-	args := c.runtimeArgs
-	args = append(args, "ps", "--format=json", c.id)
-	out, err := exec.Command(c.runtime, args...).CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("%s: %q", err.Error(), out)
-	}
-	var pids []int
-	if err := json.Unmarshal(out, &pids); err != nil {
-		return nil, err
-	}
-	return pids, nil
 }
 
 func (c *container) Stats() (*Stat, error) {
@@ -597,7 +602,7 @@ func (c *container) waitForCreate(p *process, cmd *exec.Cmd) error {
 	go func() {
 		for {
 			if _, err := p.getPidFromFile(); err != nil {
-				if os.IsNotExist(err) || err == errInvalidPidInt {
+				if os.IsNotExist(err) || err == errInvalidPidInt || err == errContainerNotFound {
 					alive, err := isAlive(cmd)
 					if err != nil {
 						wc <- err
@@ -652,7 +657,7 @@ func (c *container) waitForCreate(p *process, cmd *exec.Cmd) error {
 			return err
 		}
 		err = p.saveStartTime()
-		if err != nil {
+		if err != nil && !os.IsNotExist(err) {
 			logrus.Warnf("containerd: unable to save %s:%s starttime: %v", p.container.id, p.id, err)
 		}
 		return nil
@@ -680,7 +685,6 @@ func isAlive(cmd *exec.Cmd) (bool, error) {
 type oom struct {
 	id      string
 	root    string
-	control *os.File
 	eventfd int
 }
 
@@ -703,11 +707,7 @@ func (o *oom) Removed() bool {
 }
 
 func (o *oom) Close() error {
-	err := syscall.Close(o.eventfd)
-	if cerr := o.control.Close(); err == nil {
-		err = cerr
-	}
-	return err
+	return syscall.Close(o.eventfd)
 }
 
 type message struct {

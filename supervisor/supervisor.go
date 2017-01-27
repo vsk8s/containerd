@@ -32,17 +32,18 @@ func New(stateDir string, runtimeName, shimName string, runtimeArgs []string, ti
 		return nil, err
 	}
 	s := &Supervisor{
-		stateDir:    stateDir,
-		containers:  make(map[string]*containerInfo),
-		startTasks:  startTasks,
-		machine:     machine,
-		subscribers: make(map[chan Event]struct{}),
-		tasks:       make(chan Task, defaultBufferSize),
-		monitor:     monitor,
-		runtime:     runtimeName,
-		runtimeArgs: runtimeArgs,
-		shim:        shimName,
-		timeout:     timeout,
+		stateDir:          stateDir,
+		containers:        make(map[string]*containerInfo),
+		startTasks:        startTasks,
+		machine:           machine,
+		subscribers:       make(map[chan Event]struct{}),
+		tasks:             make(chan Task, defaultBufferSize),
+		monitor:           monitor,
+		runtime:           runtimeName,
+		runtimeArgs:       runtimeArgs,
+		shim:              shimName,
+		timeout:           timeout,
+		containerExecSync: make(map[string]map[string]chan struct{}),
 	}
 	if err := setupEventLog(s, retainCount); err != nil {
 		return nil, err
@@ -132,14 +133,21 @@ func readEventLog(s *Supervisor) error {
 	defer f.Close()
 	dec := json.NewDecoder(f)
 	for {
-		var e Event
+		var e eventV1
 		if err := dec.Decode(&e); err != nil {
 			if err == io.EOF {
 				break
 			}
 			return err
 		}
-		s.eventLog = append(s.eventLog, e)
+
+		// We need to take care of -1 Status for backward compatibility
+		ev := e.Event
+		ev.Status = uint32(e.Status)
+		if ev.Status > runtime.UnknownStatus {
+			ev.Status = runtime.UnknownStatus
+		}
+		s.eventLog = append(s.eventLog, ev)
 	}
 	return nil
 }
@@ -164,6 +172,10 @@ type Supervisor struct {
 	eventLog       []Event
 	eventLock      sync.Mutex
 	timeout        time.Duration
+	// This is used to ensure that exec process death events are sent
+	// before the init process death
+	containerExecSyncLock sync.Mutex
+	containerExecSync     map[string]map[string]chan struct{}
 }
 
 // Stop closes all startTasks and sends a SIGTERM to each container's pid1 then waits for they to
@@ -187,6 +199,11 @@ type Event struct {
 	Timestamp time.Time `json:"timestamp"`
 	PID       string    `json:"pid,omitempty"`
 	Status    uint32    `json:"status,omitempty"`
+}
+
+type eventV1 struct {
+	Event
+	Status int `json:"status,omitempty"`
 }
 
 // Events returns an event channel that external consumers can use to receive updates
@@ -328,6 +345,9 @@ func (s *Supervisor) restore() error {
 		if err := s.monitor.MonitorOOM(container); err != nil && err != runtime.ErrContainerExited {
 			logrus.WithField("error", err).Error("containerd: notify OOM events")
 		}
+
+		s.newExecSyncMap(container.ID())
+
 		logrus.WithField("id", id).Debug("containerd: container restored")
 		var exitedProcesses []runtime.Process
 		for _, p := range processes {
@@ -388,4 +408,31 @@ func (s *Supervisor) handleTask(i Task) {
 		i.ErrorCh() <- err
 		close(i.ErrorCh())
 	}
+}
+
+func (s *Supervisor) newExecSyncMap(containerID string) {
+	s.containerExecSyncLock.Lock()
+	s.containerExecSync[containerID] = make(map[string]chan struct{})
+	s.containerExecSyncLock.Unlock()
+}
+
+func (s *Supervisor) newExecSyncChannel(containerID, pid string) {
+	s.containerExecSyncLock.Lock()
+	s.containerExecSync[containerID][pid] = make(chan struct{})
+	s.containerExecSyncLock.Unlock()
+}
+
+func (s *Supervisor) getExecSyncChannel(containerID, pid string) chan struct{} {
+	s.containerExecSyncLock.Lock()
+	ch := s.containerExecSync[containerID][pid]
+	s.containerExecSyncLock.Unlock()
+	return ch
+}
+
+func (s *Supervisor) getDeleteExecSyncMap(containerID string) map[string]chan struct{} {
+	s.containerExecSyncLock.Lock()
+	chs := s.containerExecSync[containerID]
+	delete(s.containerExecSync, containerID)
+	s.containerExecSyncLock.Unlock()
+	return chs
 }
