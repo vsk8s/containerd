@@ -16,7 +16,8 @@ Build-Depends: debhelper (>= 9),
                golang-golang-x-net-dev,
                golang-google-grpc-dev,
                golang-goprotobuf-dev (>= 0.0~git20160330~),
-               golang-metrics-dev
+               golang-metrics-dev,
+               libprotobuf-dev
 Standards-Version: 3.9.8
 Homepage: https://containerd.tools
 Vcs-Git: https://anonscm.debian.org/git/pkg-go/packages/containerd.git

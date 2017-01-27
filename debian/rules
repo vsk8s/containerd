@@ -5,3 +5,9 @@ export DH_GOLANG_EXCLUDES := github.com/docker/containerd/hack github.com/docker
 
 %:
 	dh $@ --buildsystem=golang --with=golang
+
+override_dh_auto_build:
+	# Regenerate proto files for each build
+	(cd obj-x86_64-linux-gnu/src/github.com/docker/containerd && \
+		make -f ../../../../../Makefile protoc)
+	dh_auto_build

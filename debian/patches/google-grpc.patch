@@ -1,0 +1,13 @@
+Index: containerd/containerd/main.go
+===================================================================
+--- containerd.orig/containerd/main.go
++++ containerd/containerd/main.go
+@@ -212,7 +212,7 @@ func startServer(protocol, address strin
+ 	l := sockets[0]
+ 	s := grpc.NewServer()
+ 	types.RegisterAPIServer(s, server.NewServer(sv))
+-	healthServer := health.NewHealthServer()
++	healthServer := health.NewServer()
+ 	grpc_health_v1.RegisterHealthServer(s, healthServer)
+ 
+ 	go func() {
