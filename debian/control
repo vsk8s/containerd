@@ -27,6 +27,7 @@ XS-Go-Import-Path: github.com/docker/containerd
 
 Package: containerd
 Architecture: linux-any
+Breaks: docker.io (<< 1.12)
 Depends: runc (>= 0.1.0~), ${misc:Depends}, ${shlibs:Depends}
 Built-Using: ${misc:Built-Using}
 Description: daemon to control runC
