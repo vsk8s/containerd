@@ -1,3 +1,10 @@
+containerd (0.2.3~git20161117.78.03e5862~ds1-2.1) UNRELEASED; urgency=medium
+
+  [ Jordi Mallach ]
+  * Actually use DEB_HOST_GNU_TYPE to determine the arch triplet.
+
+ -- Jordi Mallach <jordi@debian.org>  Thu, 30 Mar 2017 16:28:27 +0200
+
 containerd (0.2.3~git20161117.78.03e5862~ds1-2) unstable; urgency=medium
 
   * Add Breaks line to binary package to avoid messing up previous

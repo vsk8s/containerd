@@ -8,6 +8,6 @@ export DH_GOLANG_EXCLUDES := github.com/docker/containerd/hack github.com/docker
 
 override_dh_auto_build:
 	# Regenerate proto files for each build
-	(cd obj-$(DEB_BUILD_GNU_TYPE)/src/github.com/docker/containerd && \
+	(cd obj-$(DEB_HOST_GNU_TYPE)/src/github.com/docker/containerd && \
 		make -f ../../../../../Makefile protoc)
 	dh_auto_build
