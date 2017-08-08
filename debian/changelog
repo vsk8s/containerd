@@ -1,3 +1,9 @@
+containerd (0.2.3+git20170126.85.aa8187d~ds1-2) unstable; urgency=medium
+
+  * Replace golang-go with golang-any in Build-Depends
+
+ -- Konstantinos Margaritis <markos@debian.org>  Tue, 08 Aug 2017 11:51:26 +0300
+
 containerd (0.2.3+git20170126.85.aa8187d~ds1-1) unstable; urgency=medium
 
   [ Jordi Mallach ]
