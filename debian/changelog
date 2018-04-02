@@ -1,3 +1,9 @@
+containerd (0.2.3+git20170126.85.aa8187d~ds1-3) UNRELEASED; urgency=medium
+
+  * Point Vcs-* urls to salsa.debian.org.
+
+ -- Alexandre Viau <aviau@debian.org>  Mon, 02 Apr 2018 12:55:50 -0400
+
 containerd (0.2.3+git20170126.85.aa8187d~ds1-2) unstable; urgency=medium
 
   * Replace golang-go with golang-any in Build-Depends
