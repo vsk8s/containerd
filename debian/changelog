@@ -1,8 +1,12 @@
 containerd (0.2.3+git20170126.85.aa8187d~ds1-3) UNRELEASED; urgency=medium
 
+  [ Alexandre Viau ]
   * Point Vcs-* urls to salsa.debian.org.
 
- -- Alexandre Viau <aviau@debian.org>  Mon, 02 Apr 2018 12:55:50 -0400
+  [ Christos Trochalakis ]
+  * Depend on golang-github-rcrowley-go-metrics-dev
+
+ -- Christos Trochalakis <ctrochalakis@debian.org>  Wed, 11 Apr 2018 15:55:44 +0300
 
 containerd (0.2.3+git20170126.85.aa8187d~ds1-2) unstable; urgency=medium
 
