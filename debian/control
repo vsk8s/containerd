@@ -20,7 +20,7 @@ Build-Depends: debhelper (>= 9),
                golang-goprotobuf-dev (>= 0.0~git20160330~),
                libprotobuf-dev,
 Standards-Version: 3.9.8
-Homepage: https://containerd.tools
+Homepage: https://containerd.io/
 Vcs-Git: https://salsa.debian.org/go-team/packages/containerd.git
 Vcs-Browser: https://salsa.debian.org/go-team/packages/containerd
 XS-Go-Import-Path: github.com/docker/containerd
