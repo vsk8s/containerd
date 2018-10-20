@@ -6,6 +6,9 @@ containerd (0.2.3+git20170126.85.aa8187d~ds1-3) UNRELEASED; urgency=medium
   [ Christos Trochalakis ]
   * Depend on golang-github-rcrowley-go-metrics-dev
 
+  [ Jelmer Vernooĳ ]
+  * Use secure copyright file specification URI.
+
  -- Christos Trochalakis <ctrochalakis@debian.org>  Wed, 11 Apr 2018 15:55:44 +0300
 
 containerd (0.2.3+git20170126.85.aa8187d~ds1-2) unstable; urgency=medium
