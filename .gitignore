@@ -1,7 +1,6 @@
-*.exe
-/containerd/containerd
-/containerd-shim/containerd-shim
 /bin/
-/ctr/ctr
-/hack/benchmark
-/output
+/man/
+coverage.txt
+profile.out
+containerd.test
+_site/
