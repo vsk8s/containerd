@@ -2,7 +2,9 @@ Source: containerd
 Section: admin
 Priority: optional
 Maintainer: Debian Go Packaging Team <team+pkg-go@tracker.debian.org>
-Uploaders: Tianon Gravi <tianon@debian.org>, Tim Potter <tpot@hpe.com>
+Uploaders: Tianon Gravi <tianon@debian.org>,
+           Tim Potter <tpot@hpe.com>,
+           Shengjing Zhu <zhsj@debian.org>,
 Build-Depends: debhelper (>= 11),
                dh-golang,
                go-md2man,
