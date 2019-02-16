@@ -4,14 +4,41 @@ Files-Excluded: vendor
 
 Files: *
 Copyright: 2013-2016 Docker, Inc.
+           The containerd Authors.
 License: Apache-2.0
 
+Files: contrib/apparmor/template.go
+Copyright: The containerd Authors.
+           1999-2008 Novell Inc.
+           2009-2012 Canonical Ltd.
+License: Apache-2.0
+
+Files: filters/quote.go
+Copyright: The containerd Authors.
+           The Go Authors.
+License: Apache-2.0 and Go
+
+Files: protobuf/plugin/fieldpath.proto
+Copyright: 2013 The GoGo Authors.
+License: BSD-2-Clause
+
 Files: docs/*
+       README.md
 Copyright: 2013-2016 Docker, Inc.
+           The containerd Authors.
 License: CC-BY-SA-4.0
 
 Files: debian/*
 Copyright: 2016 Tianon Gravi <tianon@debian.org>
+           2019 Shengjing Zhu <zhsj@debian.org>
+License: Apache-2.0
+
+Files: debian/vendor/github.com/docker/*
+Copyright: 2015-2017 Docker, Inc.
+License: Apache-2.0
+
+Files: debian/vendor/github.com/containerd/*
+Copyright: 2015-2019 The containerd Authors.
 License: Apache-2.0
 
 License: Apache-2.0
@@ -29,6 +56,59 @@ License: Apache-2.0
  .
  On Debian systems, the complete text of the Apache version 2.0 license
  can be found in "/usr/share/common-licenses/Apache-2.0".
+
+License: Go
+ Copyright (c) 2009 The Go Authors. All rights reserved.
+ .
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are
+ met:
+ .
+    * Redistributions of source code must retain the above copyright
+ notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+ copyright notice, this list of conditions and the following disclaimer
+ in the documentation and/or other materials provided with the
+ distribution.
+    * Neither the name of Google Inc. nor the names of its
+ contributors may be used to endorse or promote products derived from
+ this software without specific prior written permission.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+License: BSD-2-Clause
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are
+ met:
+ .
+     * Redistributions of source code must retain the above copyright
+ notice, this list of conditions and the following disclaimer.
+     * Redistributions in binary form must reproduce the above
+ copyright notice, this list of conditions and the following disclaimer
+ in the documentation and/or other materials provided with the
+ distribution.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 License: CC-BY-SA-4.0
  Attribution-ShareAlike 4.0 International
@@ -66,7 +146,7 @@ License: CC-BY-SA-4.0
       material not subject to the license. This includes other CC-
       licensed material, or material used under an exception or
       limitation to copyright. More considerations for licensors:
- 	wiki.creativecommons.org/Considerations_for_licensors
+      wiki.creativecommons.org/Considerations_for_licensors
  .
       Considerations for the public: By using one of our public
       licenses, a licensor grants the public permission to use the
@@ -83,7 +163,7 @@ License: CC-BY-SA-4.0
       Although not required by our licenses, you are encouraged to
       respect those requests where reasonable. More_considerations
       for the public:
- 	wiki.creativecommons.org/Considerations_for_licensees
+      wiki.creativecommons.org/Considerations_for_licensees
  .
  =======================================================================
  .
