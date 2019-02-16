@@ -1,15 +1,33 @@
-containerd (0.2.3+git20170126.85.aa8187d~ds1-3) UNRELEASED; urgency=medium
+containerd (1.2.4~ds1-1) experimental; urgency=medium
 
   [ Alexandre Viau ]
   * Point Vcs-* urls to salsa.debian.org.
 
-  [ Christos Trochalakis ]
-  * Depend on golang-github-rcrowley-go-metrics-dev
-
   [ Jelmer Vernooĳ ]
   * Use secure copyright file specification URI.
 
- -- Christos Trochalakis <ctrochalakis@debian.org>  Wed, 11 Apr 2018 15:55:44 +0300
+  [ Shengjing Zhu ]
+  * New upstream version 1.2.4~ds1
+  * Update Build-Depends for new version
+  * Update debhelper and campat to 11
+  * Update copyright file for new version
+  * Remove patches no longer used
+  * Update debian/rules for new version
+  * Vendor dependencies
+    + github.com/containerd/continuity: 49 files
+    + github.com/containerd/go-runc: 10 files
+    + github.com/containerd/ttrpc: 9 files
+    + github.com/docker/distribution: 5 files
+  * Install all files to -dev package
+  * Generate manpages from docs/man directory
+  * Update Maintainer address to team+pkg-go@tracker.debian.org
+  * Add myself to Uploaders
+  * Add a TODO file
+  * Update package description with words in upstream README
+  * Install Apache NOTICE file
+  * Remove unneeded tag in lintian overrides
+
+ -- Shengjing Zhu <zhsj@debian.org>  Sun, 17 Feb 2019 04:12:40 +0800
 
 containerd (0.2.3+git20170126.85.aa8187d~ds1-2) unstable; urgency=medium
 
