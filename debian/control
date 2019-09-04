@@ -1,0 +1,46 @@
+Source: containerd
+Section: admin
+Priority: optional
+Maintainer: Maximilian Falkenstein <maximilian.falkenstein@sos.ethz.ch>
+Build-Depends: debhelper (>= 11),
+               dh-golang,
+               go-md2man,
+               golang-any,
+Standards-Version: 3.9.8
+Homepage: https://containerd.io/
+Vcs-Git: https://git.sos.ethz.ch/pkgs/containerd.git
+Vcs-Browser: https://git.sos.ethz.ch/pkgs/containerd
+XS-Go-Import-Path: github.com/containerd/containerd
+
+Package: containerd
+Architecture: linux-any
+Breaks: docker.io (<< 1.12)
+Conflicts: containerd.io
+Depends: runc (>= 0.1.0~), ${misc:Depends}, ${shlibs:Depends}
+Built-Using: ${misc:Built-Using}
+Description: open and reliable container runtime
+ Containerd is an industry-standard container runtime with an emphasis on
+ simplicity, robustness and portability. It is available as a daemon for
+ Linux and Windows, which can manage the complete container life cycle of
+ its host system: image transfer and storage, container execution and
+ supervision, low-level storage and network attachments, etc.
+ .
+ Containerd is designed to be embedded into a larger system, rather than
+ being used directly by developers or end-users.
+ .
+ This package contains the binaries.
+
+Package: golang-github-containerd-containerd-dev
+Architecture: all
+Depends: ${misc:Depends}
+Description: open and reliable container runtime (development files)
+ Containerd is an industry-standard container runtime with an emphasis on
+ simplicity, robustness and portability. It is available as a daemon for
+ Linux and Windows, which can manage the complete container life cycle of
+ its host system: image transfer and storage, container execution and
+ supervision, low-level storage and network attachments, etc.
+ .
+ Containerd is designed to be embedded into a larger system, rather than
+ being used directly by developers or end-users.
+ .
+ This package provides development files.

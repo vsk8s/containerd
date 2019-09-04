@@ -1,0 +1,108 @@
+containerd (1.2.8-1) unstable; urgency=medium
+
+  * New upstream release 1.2.8
+  * Port to SOS K8S infra
+
+ -- Maximilian Falkenstein <maximilian.falkenstein@sos.ethz.ch>  Tue, 03 Sep 2019 18:33:19 +0200
+
+containerd (1.2.4~ds1-1) experimental; urgency=medium
+
+  [ Alexandre Viau ]
+  * Point Vcs-* urls to salsa.debian.org.
+
+  [ Jelmer Vernooĳ ]
+  * Use secure copyright file specification URI.
+
+  [ Shengjing Zhu ]
+  * New upstream version 1.2.4~ds1
+  * Update Build-Depends for new version
+  * Update debhelper and campat to 11
+  * Update copyright file for new version
+  * Remove patches no longer used
+  * Update debian/rules for new version
+  * Vendor dependencies
+    + github.com/containerd/continuity: 49 files
+    + github.com/containerd/go-runc: 10 files
+    + github.com/containerd/ttrpc: 9 files
+    + github.com/docker/distribution: 5 files
+  * Install all files to -dev package
+  * Generate manpages from docs/man directory
+  * Update Maintainer address to team+pkg-go@tracker.debian.org
+  * Add myself to Uploaders
+  * Add a TODO file
+  * Update package description with words in upstream README
+  * Install Apache NOTICE file
+  * Remove unneeded tag in lintian overrides
+
+ -- Shengjing Zhu <zhsj@debian.org>  Sun, 17 Feb 2019 04:12:40 +0800
+
+containerd (0.2.3+git20170126.85.aa8187d~ds1-2) unstable; urgency=medium
+
+  * Replace golang-go with golang-any in Build-Depends
+
+ -- Konstantinos Margaritis <markos@debian.org>  Tue, 08 Aug 2017 11:51:26 +0300
+
+containerd (0.2.3+git20170126.85.aa8187d~ds1-1) unstable; urgency=medium
+
+  [ Jordi Mallach ]
+  * Actually use DEB_HOST_GNU_TYPE to determine the arch triplet.
+
+  [ Tim Potter ]
+  * New upstream snapshot for Docker 1.13.1.
+
+ -- Tim Potter <tpot@hpe.com>  Wed, 24 May 2017 11:38:46 +1000
+
+containerd (0.2.3~git20161117.78.03e5862~ds1-2) unstable; urgency=medium
+
+  * Add Breaks line to binary package to avoid messing up previous
+    Docker installs.
+  * Use DEB_BUILD_GNU_TYPE in debian/rules instead of hardcoding for
+    amd64. (Closes: #858266)
+  * Suppress binary-without-manpage and spelling-error-in-binary
+    Lintian messages.
+
+ -- Tim Potter <tpot@hpe.com>  Tue, 21 Mar 2017 09:01:49 +1100
+
+containerd (0.2.3~git20161117.78.03e5862~ds1-1) unstable; urgency=medium
+
+  * New upstream version.
+  * Regenerate proto files on each rebuild.
+
+ -- Tim Potter <tpot@hpe.com>  Fri, 27 Jan 2017 12:30:54 +1100
+
+containerd (0.2.1~ds1-3) unstable; urgency=medium
+
+  [ Team upload ]
+  * Rebuild proto files against newer version of grpc (Closes: #835736)
+
+ -- Tim Potter <tpot@hpe.com>  Fri, 09 Sep 2016 10:11:54 +1000
+
+containerd (0.2.1~ds1-2) unstable; urgency=medium
+
+  * Team upload.
+  * Standards-Version: 3.9.8.
+  * Trim -dev package to avoid circular dependency with Docker.
+  * dev/Depends:
+    - golang-github-codegangsta-cli-dev
+    - golang-github-cyberdelia-go-metrics-graphite-dev
+    - golang-github-docker-docker-dev
+
+ -- Dmitry Smirnov <onlyjob@debian.org>  Mon, 13 Jun 2016 11:15:48 +1000
+
+containerd (0.2.1~ds1-1) unstable; urgency=medium
+
+  * Team upload.
+
+  [ Tianon Gravi ]
+  * Update to 0.2.1 upstream release
+
+  [ Tim Potter ]
+  * Add "golang-github-docker-containerd-dev" package (Closes: #822213)
+
+ -- Dmitry Smirnov <onlyjob@debian.org>  Sat, 23 Apr 2016 22:54:15 +1000
+
+containerd (0.1.0~ds1-1) unstable; urgency=medium
+
+  * Initial release (Closes: #819520)
+
+ -- Tianon Gravi <tianon@debian.org>  Sat, 02 Apr 2016 11:05:01 -0700

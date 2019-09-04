@@ -1,0 +1,11 @@
+* packaging following dependencies:
+  + golang-github-containerd-aufs-dev
+  + golang-github-containerd-cri-dev
+  + golang-github-containerd-ttrpc-dev
+    renamed from golang-github-stevvooe-ttrpc-dev, which is packaged
+  + golang-github-containerd-zfs-dev
+
+* coordinating with build-rdeps to update following dependencies:
+  + golang-github-containerd-continuity-dev
+  + golang-github-containerd-go-runc-dev
+  + golang-github-docker-distribution-dev
