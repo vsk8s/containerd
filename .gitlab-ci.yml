@@ -14,7 +14,7 @@ build:
     - apt update
     - apt install -y go-md2man
   script:
-    - gbp buildpackage --git-ignore-branch -b -us -uc
+    - dpkg-buildpackage -b -us -uc
     - mv ../*.deb . # GitLab can't copy from the parent directory...
   artifacts:
     name: packets
