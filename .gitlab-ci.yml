@@ -12,7 +12,7 @@ build:
   stage: build
   before_script:
     - apt update
-    - apt install -y go-md2man
+    - apt install -y go-md2man golang-any
   script:
     - dpkg-buildpackage -b -us -uc
     - mv ../*.deb . # GitLab can't copy from the parent directory...
