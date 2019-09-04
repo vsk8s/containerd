@@ -12,7 +12,7 @@ build:
   stage: build
   before_script:
     - apt update
-    - apt install -y go-md2man golang-any libbtrfs-dev
+    - apt install -y go-md2man golang-any libbtrfs-dev libseccomp-dev
   script:
     - dpkg-buildpackage -b -us -uc
     - mv ../*.deb . # GitLab can't copy from the parent directory...
