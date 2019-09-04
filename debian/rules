@@ -18,6 +18,3 @@ override_dh_auto_test:
 override_dh_auto_build:
 	make man
 	dh_auto_build -- $(BUILDTAGS) $(GO_LDFLAGS)
-
-override_dh_auto_test:
-	dh_auto_test -- $(BUILDTAGS)
