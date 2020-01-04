@@ -17,10 +17,12 @@
 package docker
 
 import (
+	"context"
 	"testing"
 
 	"github.com/containerd/containerd/reference"
 	"gotest.tools/assert"
+	"gotest.tools/assert/cmp"
 )
 
 func TestRepositoryScope(t *testing.T) {
@@ -53,4 +55,54 @@ func TestRepositoryScope(t *testing.T) {
 			assert.Equal(t, x.expected, actual)
 		})
 	}
+}
+
+func TestGetTokenScopes(t *testing.T) {
+	testCases := []struct {
+		scopesInCtx  []string
+		commonScopes []string
+		expected     []string
+	}{
+		{
+			scopesInCtx:  []string{},
+			commonScopes: []string{"repository:foo/bar:pull"},
+			expected:     []string{"repository:foo/bar:pull"},
+		},
+		{
+			scopesInCtx:  []string{"repository:foo/bar:pull,push"},
+			commonScopes: []string{},
+			expected:     []string{"repository:foo/bar:pull,push"},
+		},
+		{
+			scopesInCtx:  []string{"repository:foo/bar:pull"},
+			commonScopes: []string{"repository:foo/bar:pull"},
+			expected:     []string{"repository:foo/bar:pull"},
+		},
+		{
+			scopesInCtx:  []string{"repository:foo/bar:pull"},
+			commonScopes: []string{"repository:foo/bar:pull,push"},
+			expected:     []string{"repository:foo/bar:pull", "repository:foo/bar:pull,push"},
+		},
+		{
+			scopesInCtx:  []string{"repository:foo/bar:pull"},
+			commonScopes: []string{"repository:foo/bar:pull,push", "repository:foo/bar:pull"},
+			expected:     []string{"repository:foo/bar:pull", "repository:foo/bar:pull,push"},
+		},
+	}
+	for _, tc := range testCases {
+		ctx := context.WithValue(context.TODO(), tokenScopesKey{}, tc.scopesInCtx)
+		actual := getTokenScopes(ctx, tc.commonScopes)
+		assert.DeepEqual(t, tc.expected, actual)
+	}
+}
+
+func TestCustomScope(t *testing.T) {
+	scope := "whatever:foo/bar:pull"
+	ctx := WithScope(context.Background(), scope)
+	ctx = contextWithAppendPullRepositoryScope(ctx, "foo/bar")
+
+	scopes := getTokenScopes(ctx, []string{})
+	assert.Assert(t, cmp.Len(scopes, 2))
+	assert.Check(t, cmp.Equal(scopes[0], "repository:foo/bar:pull"))
+	assert.Check(t, cmp.Equal(scopes[1], scope))
 }
