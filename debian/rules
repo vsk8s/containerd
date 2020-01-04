@@ -6,17 +6,12 @@ PKG := github.com/containerd/containerd
 BUILDTAGS := -tags "seccomp apparmor"
 GO_LDFLAGS := -ldflags '-X $(PKG)/version.Version=$(DEB_VERSION)'
 
-export DH_GOLANG_EXCLUDES := cmd/protoc-gen-gogoctrd
+export DH_GOLANG_EXCLUDES := \
+	cmd/protoc-gen-gogoctrd cmd/gen-manpages cmd/containerd-stress \
+	runtime/v2/example/cmd
 
 %:
 	dh $@ --buildsystem=golang --with=golang
-
-override_dh_auto_configure:
-	sed -i '/github.com\/containerd\/zfs/d' cmd/containerd/builtins_linux.go
-	sed -i '/github.com\/containerd\/aufs/d' cmd/containerd/builtins_linux.go
-	cp -rvT debian/vendor ./vendor/
-	rm -v cmd/containerd/builtins_cri_linux.go cmd/ctr/builtins_cri_linux.go
-	dh_auto_configure
 
 override_dh_auto_build:
 	make man
