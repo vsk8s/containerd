@@ -34,9 +34,7 @@ Filesystem paths, IDs, and other system level resources must be namespaced for a
 
 Simply create a new `context` and set your application's namespace on the `context`.
 Make sure to use a unique namespace for applications that does not conflict with existing namespaces. The namespaces
-API, or the `ctr namespaces` client command, can be used to query/list and create new namespaces. Note that namespaces
-can have a list of labels associated with the namespace. This can be useful for associating metadata with a particular
-namespace.
+API, or the `ctr namespaces` client command, can be used to query/list and create new namespaces.
 
 ```go
 ctx := context.Background()
@@ -49,11 +47,24 @@ var (
 )
 ```
 
+## Namespace Labels
+
+Namespaces can have a list of labels associated with the namespace. This can be useful for associating metadata with a particular namespace.
+Labels can also be used to configure the defaults for containerd, for example:
+
+```bash
+> sudo ctr namespaces label k8s.io containerd.io/defaults/snapshotter=btrfs
+> sudo ctr namespaces label k8s.io containerd.io/defaults/runtime=testRuntime
+```
+
+This will set the default snapshotter as `btrfs` and runtime as `testRuntime`.
+Note that currently only these two labels are used to configure the defaults and labels of `default` namespace are not considered for the same.
+
 ## Inspecting Namespaces
 
 If we need to inspect containers, images, or other resources in various namespaces the `ctr` tool allows you to do this.
 Simply set the `--namespace,-n` flag on `ctr` to change the namespace. If you do not provide a namespace, `ctr` client commands
-will all use the the default namespace, which is simply named "`default`".
+will all use the default namespace, which is simply named "`default`".
 
 ```bash
 > sudo ctr -n docker tasks

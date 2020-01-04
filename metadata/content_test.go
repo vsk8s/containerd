@@ -36,7 +36,7 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-func createContentStore(ctx context.Context, root string) (context.Context, content.Store, func() error, error) {
+func createContentStore(ctx context.Context, root string, opts ...DBOpt) (context.Context, content.Store, func() error, error) {
 	// TODO: Use mocked or in-memory store
 	cs, err := local.NewStore(root)
 	if err != nil {
@@ -60,13 +60,24 @@ func createContentStore(ctx context.Context, root string) (context.Context, cont
 	}
 	ctx = testsuite.SetContextWrapper(ctx, wrap)
 
-	return ctx, NewDB(db, cs, nil).ContentStore(), func() error {
+	return ctx, NewDB(db, cs, nil, opts...).ContentStore(), func() error {
 		return db.Close()
 	}, nil
 }
 
+func createContentStoreWithPolicy(opts ...DBOpt) testsuite.StoreInitFn {
+	return func(ctx context.Context, root string) (context.Context, content.Store, func() error, error) {
+		return createContentStore(ctx, root, opts...)
+	}
+}
+
 func TestContent(t *testing.T) {
-	testsuite.ContentSuite(t, "metadata", createContentStore)
+	testsuite.ContentSuite(t, "metadata", createContentStoreWithPolicy())
+	testsuite.ContentCrossNSSharedSuite(t, "metadata", createContentStoreWithPolicy())
+	testsuite.ContentCrossNSIsolatedSuite(
+		t, "metadata", createContentStoreWithPolicy([]DBOpt{
+			WithPolicyIsolated,
+		}...))
 }
 
 func TestContentLeased(t *testing.T) {
@@ -155,17 +166,13 @@ func TestIngestLeased(t *testing.T) {
 }
 
 func createLease(ctx context.Context, db *DB, name string) (context.Context, func() error, error) {
-	if err := db.Update(func(tx *bolt.Tx) error {
-		_, err := NewLeaseManager(tx).Create(ctx, leases.WithID(name))
-		return err
-	}); err != nil {
+	lm := NewLeaseManager(db)
+	if _, err := lm.Create(ctx, leases.WithID(name)); err != nil {
 		return nil, nil, err
 	}
 	return leases.WithLease(ctx, name), func() error {
-		return db.Update(func(tx *bolt.Tx) error {
-			return NewLeaseManager(tx).Delete(ctx, leases.Lease{
-				ID: name,
-			})
+		return lm.Delete(ctx, leases.Lease{
+			ID: name,
 		})
 	}, nil
 }

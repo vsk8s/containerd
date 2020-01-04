@@ -1,5 +1,9 @@
 # /etc/containerd/config.toml 5 08/08/2018
 
+## NAME
+
+containerd-config.toml - configuration file for containerd
+
 ## SYNOPSIS
 
 The **config.toml** file is a configuration file for the containerd daemon. The
@@ -27,6 +31,14 @@ settings.
 
 **oom_score**
 : The out of memory (OOM) score applied to the containerd daemon process (Default: 0)
+
+**imports**
+: Imports is a list of additional configuration files to include.
+This allows to split the main configuration file and keep some sections
+separately (for example vendors may keep a custom runtime configuration in a
+separate file without modifying the main `config.toml`).
+Imported files will overwrite simple fields like `int` or
+`string` (if not empty) and will append `array` and `map` fields.
 
 **[grpc]**
 : Section for gRPC socket listener settings. Contains three properties:
@@ -78,6 +90,7 @@ The following is a complete **config.toml** default configuration example:
 root = "/var/lib/containerd"
 state = "/run/containerd"
 oom_score = 0
+imports = ["/etc/containerd/runtime_*.toml", "./debug.toml"]
 
 [grpc]
   address = "/run/containerd/containerd.sock"

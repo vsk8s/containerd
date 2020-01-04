@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/pkg/testutil"
@@ -52,24 +53,39 @@ func boltSnapshotter(t *testing.T) func(context.Context, string) (snapshots.Snap
 		if os.Getpagesize() > 4096 {
 			loopbackSize = int64(650 << 20) // 650 MB
 		}
-		deviceName, cleanupDevice, err := loopback.New(loopbackSize)
+		loop, err := loopback.New(loopbackSize)
 
 		if err != nil {
 			return nil, nil, err
 		}
 
-		if out, err := exec.Command(mkbtrfs, deviceName).CombinedOutput(); err != nil {
-			cleanupDevice()
+		if out, err := exec.Command(mkbtrfs, loop.Device).CombinedOutput(); err != nil {
+			loop.Close()
 			return nil, nil, errors.Wrapf(err, "failed to make btrfs filesystem (out: %q)", out)
 		}
-		if out, err := exec.Command("mount", deviceName, root).CombinedOutput(); err != nil {
-			cleanupDevice()
-			return nil, nil, errors.Wrapf(err, "failed to mount device %s (out: %q)", deviceName, out)
-		}
+		// sync after a mkfs on the loopback before trying to mount the device
+		unix.Sync()
 
+		for i := 0; i < 5; i++ {
+			if out, err := exec.Command("mount", loop.Device, root).CombinedOutput(); err != nil {
+				loop.Close()
+				return nil, nil, errors.Wrapf(err, "failed to mount device %s (out: %q)", loop.Device, out)
+			}
+			var stat unix.Statfs_t
+			if err := unix.Statfs(root, &stat); err != nil {
+				unix.Unmount(root, 0)
+				return nil, nil, errors.Wrapf(err, "unable to statfs btrfs mount %s", root)
+			}
+			if stat.Type == unix.BTRFS_SUPER_MAGIC {
+				break
+			}
+			// unmount and try again
+			unix.Unmount(root, 0)
+			time.Sleep(100 * time.Millisecond)
+		}
 		snapshotter, err := NewSnapshotter(root)
 		if err != nil {
-			cleanupDevice()
+			loop.Close()
 			return nil, nil, errors.Wrap(err, "failed to create new snapshotter")
 		}
 
@@ -78,7 +94,7 @@ func boltSnapshotter(t *testing.T) func(context.Context, string) (snapshots.Snap
 				return err
 			}
 			err := mount.UnmountAll(root, unix.MNT_DETACH)
-			if cerr := cleanupDevice(); cerr != nil {
+			if cerr := loop.Close(); cerr != nil {
 				err = errors.Wrap(cerr, "device cleanup failed")
 			}
 			return err
