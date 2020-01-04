@@ -63,9 +63,12 @@ XS-Go-Import-Path: github.com/containerd/containerd
 
 Package: containerd
 Architecture: linux-any
-Breaks: docker.io (<< 1.12)
-Depends: runc (>= 0.1.0~), ${misc:Depends}, ${shlibs:Depends}
-Built-Using: ${misc:Built-Using}
+Breaks: docker.io (<< 1.12),
+Depends: runc (>= 0.1.0~),
+         ${misc:Depends},
+         ${shlibs:Depends},
+Suggests: containernetworking-plugins,
+Built-Using: ${misc:Built-Using},
 Description: open and reliable container runtime
  Containerd is an industry-standard container runtime with an emphasis on
  simplicity, robustness and portability. It is available as a daemon for
