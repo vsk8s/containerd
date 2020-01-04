@@ -2,20 +2,33 @@
 
 include /usr/share/dpkg/pkg-info.mk
 
-PKG := github.com/containerd/containerd
-BUILDTAGS := -tags "seccomp apparmor"
+PKG        := github.com/containerd/containerd
+BUILDTAGS  := -tags "seccomp apparmor"
 GO_LDFLAGS := -ldflags '-X $(PKG)/version.Version=$(DEB_VERSION)'
+GEN_MAN    := $(CURDIR)/_build/src/$(PKG)/gen_man.go
 
-export DH_GOLANG_EXCLUDES := \
+export DH_GOLANG_GO_GENERATE := 1
+export DH_GOLANG_EXCLUDES    := \
 	cmd/protoc-gen-gogoctrd cmd/gen-manpages cmd/containerd-stress \
 	runtime/v2/example/cmd
 
 %:
-	dh $@ --buildsystem=golang --with=golang
+	dh $@ --buildsystem=golang --with=golang --builddirectory=_build
+
+override_dh_auto_configure:
+	dh_auto_configure
+	echo "package containerd" >> $(GEN_MAN)
+	echo "//go:generate go run cmd/gen-manpages/main.go containerd $(CURDIR)/man" >> $(GEN_MAN)
+	echo "//go:generate go run cmd/gen-manpages/main.go ctr $(CURDIR)/man" >> $(GEN_MAN)
 
 override_dh_auto_build:
-	make man
 	dh_auto_build -- $(BUILDTAGS) $(GO_LDFLAGS)
+	make man/containerd-config.1
+	make man/containerd-config.toml.5
 
 override_dh_auto_test:
 	dh_auto_test -- $(BUILDTAGS)
+
+override_dh_auto_install:
+	rm -f $(GEN_MAN)
+	dh_auto_install
