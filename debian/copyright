@@ -118,13 +118,48 @@ Copyright: 2016 Tianon Gravi <tianon@debian.org>
            2019 Shengjing Zhu <zhsj@debian.org>
 License: Apache-2.0
 
-Files: debian/vendor/github.com/docker/*
+Files: vendor/github.com/docker/*
 Copyright: 2015-2017 Docker, Inc.
 License: Apache-2.0
 
-Files: debian/vendor/github.com/containerd/*
+Files: vendor/github.com/docker/docker/pkg/symlink/fs.go
+Copyright: 2012 The Go Authors.
+License: Go
+
+Files: vendor/github.com/containerd/*
 Copyright: 2015-2019 The containerd Authors.
 License: Apache-2.0
+
+Files: vendor/github.com/containerd/cri/pkg/config/config.go
+       vendor/github.com/containerd/cri/pkg/ioutil/*
+       vendor/github.com/containerd/cri/pkg/os/os.go
+       vendor/github.com/containerd/cri/pkg/registrar/registrar.go
+       vendor/github.com/containerd/cri/pkg/server/*
+       vendor/github.com/containerd/cri/pkg/store/*
+       vendor/github.com/containerd/cri/pkg/util/*
+       vendor/github.com/containerd/cri/pkg/containerd/opts/task.go
+       vendor/github.com/containerd/cri/pkg/containerd/opts/container.go
+Copyright: 2017 The Kubernetes Authors.
+License: Apache-2.0
+
+Files: vendor/k8s.io/*
+Copyright: 2014-2019 The Kubernetes Authors.
+License: Apache-2.0
+
+Files: vendor/k8s.io/klog/klog_file.go
+       vendor/k8s.io/klog/klog.go
+Copyright: 2013 Google Inc.
+License: Apache-2.0
+
+Files: vendor/k8s.io/kubernetes/third_party/protobuf/google/protobuf/compiler/plugin.proto
+       vendor/k8s.io/kubernetes/third_party/protobuf/google/protobuf/descriptor.proto
+Copyright: 2008 Google Inc.
+License: Go
+
+Files: vendor/sigs.k8s.io/*
+Copyright: 2014 Sam Ghods
+           2012-2013 The Go Authors.
+License: MIT and Go
 
 License: Apache-2.0
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -194,6 +229,25 @@ License: BSD-2-Clause
  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+License: MIT
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ .
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
 
 License: CC-BY-SA-4.0
  Attribution-ShareAlike 4.0 International
