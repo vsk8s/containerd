@@ -79,9 +79,7 @@ Description: open and reliable container runtime
  Containerd is designed to be embedded into a larger system, rather than
  being used directly by developers or end-users.
  .
- This package is built with containerd-cri, a plugin for Kubernetes Container
- Runtime Interface (CRI). The docker.io package also ships containerd binary,
- which doesn't have CRI support.
+ This package contains the binaries.
 
 Package: golang-github-containerd-containerd-dev
 Architecture: all
