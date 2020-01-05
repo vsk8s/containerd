@@ -1,16 +1,21 @@
 #!/usr/bin/make -f
 
-include /usr/share/dpkg/pkg-info.mk
+include /usr/share/dpkg/default.mk
 
-PKG        := github.com/containerd/containerd
-BUILDTAGS  := -tags "seccomp apparmor"
-GO_LDFLAGS := -ldflags '-X $(PKG)/version.Version=$(DEB_VERSION)'
-GEN_MAN    := $(CURDIR)/_build/src/$(PKG)/gen_man.go
+PKG      := github.com/containerd/containerd
+TAGS     := seccomp apparmor
+LDFLAGS  := -X $(PKG)/version.Version=$(DEB_VERSION)
+GEN_MAN  := $(CURDIR)/_build/src/$(PKG)/gen_man.go
+EXCLUDES += cmd/protoc-gen-gogoctrd cmd/gen-manpages cmd/containerd-stress
+EXCLUDES += runtime/v2/example/cmd
+
+ifneq (,$(filter $(DEB_HOST_ARCH), mipsel))
+TAGS     += no_btrfs
+EXCLUDES += snapshots/btrfs
+endif
 
 export DH_GOLANG_GO_GENERATE := 1
-export DH_GOLANG_EXCLUDES    := \
-	cmd/protoc-gen-gogoctrd cmd/gen-manpages cmd/containerd-stress \
-	runtime/v2/example/cmd
+export DH_GOLANG_EXCLUDES    := $(EXCLUDES)
 
 %:
 	dh $@ --buildsystem=golang --with=golang --builddirectory=_build
@@ -22,13 +27,13 @@ override_dh_auto_configure:
 	echo "//go:generate go run cmd/gen-manpages/main.go ctr $(CURDIR)/man" >> $(GEN_MAN)
 
 override_dh_auto_build:
-	dh_auto_build -- $(BUILDTAGS) $(GO_LDFLAGS)
+	dh_auto_build -- -tags $(TAGS) -ldflags '$(LDFLAGS)'
 	make man/containerd-config.1
 	make man/containerd-config.toml.5
 	sed 's|/usr/local/bin|/usr/bin|' containerd.service > debian/containerd.service
 
 override_dh_auto_test:
-	dh_auto_test -- $(BUILDTAGS)
+	dh_auto_test -- -tags $(TAGS)
 
 override_dh_auto_install:
 	rm -f $(GEN_MAN)

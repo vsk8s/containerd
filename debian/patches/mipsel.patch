@@ -1,0 +1,16 @@
+Description: cast uint32 Rdev type on mipsel
+Origin: https://github.com/moby/moby/pull/39646
+
+diff --git a/vendor/github.com/docker/docker/pkg/system/stat_linux.go b/vendor/github.com/docker/docker/pkg/system/stat_linux.go
+index 1939f951..af7af20f 100644
+--- a/vendor/github.com/docker/docker/pkg/system/stat_linux.go
++++ b/vendor/github.com/docker/docker/pkg/system/stat_linux.go
+@@ -8,7 +8,7 @@ func fromStatT(s *syscall.Stat_t) (*StatT, error) {
+ 		mode: s.Mode,
+ 		uid:  s.Uid,
+ 		gid:  s.Gid,
+-		rdev: s.Rdev,
++		rdev: uint64(s.Rdev),
+ 		mtim: s.Mtim}, nil
+ }
+ 
