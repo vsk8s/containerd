@@ -80,6 +80,10 @@ Description: open and reliable container runtime
  being used directly by developers or end-users.
  .
  This package contains the binaries.
+ .
+ Note: docker.io package contains its own containerd binary, located at
+ /usr/bin/docker-containerd. You don't need this containerd package
+ if you only need to use docker.
 
 Package: golang-github-containerd-containerd-dev
 Architecture: all
