@@ -8,6 +8,8 @@ LDFLAGS  := -X $(PKG)/version.Version=$(DEB_VERSION)
 GEN_MAN  := $(CURDIR)/_build/src/$(PKG)/gen_man.go
 EXCLUDES += cmd/protoc-gen-gogoctrd cmd/gen-manpages cmd/containerd-stress
 EXCLUDES += runtime/v2/example/cmd
+CRI_FILE += cmd/containerd/builtins_cri_linux.go vendor/github.com/containerd/cri
+CRI_FILE += vendor/k8s.io vendor/sigs.k8s.io vendor/github.com/docker/docker
 
 ifneq (,$(filter $(DEB_HOST_ARCH), mipsel))
 TAGS     += no_btrfs
@@ -27,14 +29,13 @@ override_dh_auto_configure:
 	echo "//go:generate go run cmd/gen-manpages/main.go ctr $(CURDIR)/man" >> $(GEN_MAN)
 
 override_dh_auto_build:
-	dh_auto_build -- -tags $(TAGS) -ldflags '$(LDFLAGS)'
+	dh_auto_build -- -tags '$(TAGS)' -ldflags '$(LDFLAGS)'
 	make man/containerd-config.1
 	make man/containerd-config.toml.5
 	sed 's|/usr/local/bin|/usr/bin|' containerd.service > debian/containerd.service
 
 override_dh_auto_test:
-	dh_auto_test -- -tags $(TAGS)
+	dh_auto_test -- -tags '$(TAGS)'
 
 override_dh_auto_install:
-	rm -f $(GEN_MAN)
-	dh_auto_install
+	DH_GOLANG_EXCLUDES="$(EXCLUDES) $(CRI_FILE) gen_man.go" dh_auto_install

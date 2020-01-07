@@ -1,4 +1,4 @@
-The following libraries have cycle dependency issues, so they are kept in
+The following libraries have circular dependency issues, so they are kept in
 vendor directory:
 * github.com/containerd/cri
 * github.com/containerd/aufs
