@@ -1,0 +1,34 @@
+From d02388765100412fd5b8d49744f400a5d49610e3 Mon Sep 17 00:00:00 2001
+From: Shengjing Zhu <zhsj@debian.org>
+Date: Tue, 7 Jan 2020 23:53:05 +0800
+Subject: [PATCH] platforms: fill default arm variant when parse platform
+ specifier
+
+arm has been supported, but something is missing, causes test failure
+
+    --- FAIL: TestParseSelector/linux (0.00s)
+        platforms_test.go:292: arm support not fully implemented: not implemented
+    --- FAIL: TestParseSelector/macOS (0.00s)
+        platforms_test.go:292: arm support not fully implemented: not implemented
+
+Signed-off-by: Shengjing Zhu <zhsj@debian.org>
+---
+ platforms/platforms.go | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/platforms/platforms.go b/platforms/platforms.go
+index d2b73ac3d3..77d3f184ec 100644
+--- a/platforms/platforms.go
++++ b/platforms/platforms.go
+@@ -189,9 +189,8 @@ func Parse(specifier string) (specs.Platform, error) {
+ 		if isKnownOS(p.OS) {
+ 			// picks a default architecture
+ 			p.Architecture = runtime.GOARCH
+-			if p.Architecture == "arm" {
+-				// TODO(stevvooe): Resolve arm variant, if not v6 (default)
+-				return specs.Platform{}, errors.Wrapf(errdefs.ErrNotImplemented, "arm support not fully implemented")
++			if p.Architecture == "arm" && cpuVariant != "v7" {
++				p.Variant = cpuVariant
+ 			}
+ 
+ 			return p, nil
