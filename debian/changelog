@@ -1,3 +1,11 @@
+containerd (1.3.2~ds1-3) unstable; urgency=medium
+
+  * Update armel/armhf patch to fix failing test
+  * Remove unused Depends from -dev package.
+    Since the containerd/cri is removed from -dev package
+
+ -- Shengjing Zhu <zhsj@debian.org>  Wed, 08 Jan 2020 16:20:14 +0800
+
 containerd (1.3.2~ds1-2) unstable; urgency=medium
 
   * Upload to unstable
