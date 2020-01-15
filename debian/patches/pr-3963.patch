@@ -1,0 +1,34 @@
+From e859b8a92b58499b4681cb96dae74f2f3bb50a70 Mon Sep 17 00:00:00 2001
+From: Shengjing Zhu <zhsj@debian.org>
+Date: Wed, 15 Jan 2020 18:23:37 +0800
+Subject: [PATCH] gc: increase sleep time in test
+
+Fix some flaky tests.
+
+Signed-off-by: Shengjing Zhu <zhsj@debian.org>
+---
+ gc/scheduler/scheduler_test.go | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/gc/scheduler/scheduler_test.go b/gc/scheduler/scheduler_test.go
+index 891b814bd4..8027d993af 100644
+--- a/gc/scheduler/scheduler_test.go
++++ b/gc/scheduler/scheduler_test.go
+@@ -98,7 +98,7 @@ func TestDeletionThreshold(t *testing.T) {
+ 
+ 	select {
+ 	case <-gcWait:
+-	case <-time.After(time.Millisecond * 10):
++	case <-time.After(time.Millisecond * 30):
+ 		t.Fatal("GC wait timed out")
+ 	}
+ 
+@@ -162,7 +162,7 @@ func TestStartupDelay(t *testing.T) {
+ 	defer cancel()
+ 	go scheduler.run(ctx)
+ 
+-	time.Sleep(time.Millisecond * 5)
++	time.Sleep(time.Millisecond * 30)
+ 
+ 	if c := tc.runCount(); c != 1 {
+ 		t.Fatalf("unexpected gc run count %d, expected 1", c)
