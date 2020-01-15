@@ -16,6 +16,11 @@ TAGS     += no_btrfs
 EXCLUDES += snapshots/btrfs
 endif
 
+ifneq (,$(findstring gccgo, $(shell go version)))
+TAGS     += no_cri
+EXCLUDES += $(CRI_FILE)
+endif
+
 export DH_GOLANG_GO_GENERATE := 1
 export DH_GOLANG_EXCLUDES    := $(EXCLUDES)
 
