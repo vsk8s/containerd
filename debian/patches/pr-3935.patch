@@ -1,0 +1,55 @@
+From 465c11dc8736d3e2a9a3b76ece6abdeb63a2f676 Mon Sep 17 00:00:00 2001
+From: Shengjing Zhu <zhsj@debian.org>
+Date: Tue, 7 Jan 2020 14:25:13 +0800
+Subject: [PATCH] Fix build with gccgo
+
++ archive: don't convert syscall.Timespec to unix.Timespec
+  archive/tar_unix.go:179:76: error: invalid type conversion (cannot use type syscall.Timespec as type unix.Timespec)
+    179 |  timespec := []unix.Timespec{unix.Timespec(fs.StatAtime(st)), unix.Timespec(fs.StatMtime(st))}
++ gccgo has no plugin support
+  https://github.com/golang/go/issues/36403
++ update github.com/containerd/continuity
+  to include same fix for Timespec
+
+Signed-off-by: Shengjing Zhu <zhsj@debian.org>
+---
+ archive/tar_unix.go                           |  5 +++-
+ plugin/plugin_go18.go                         |  2 +-
+ plugin/plugin_other.go                        |  2 +-
+
+diff --git a/archive/tar_unix.go b/archive/tar_unix.go
+index e872187530..d081351f1e 100644
+--- a/archive/tar_unix.go
++++ b/archive/tar_unix.go
+@@ -176,7 +176,10 @@ func copyDirInfo(fi os.FileInfo, path string) error {
+ 		return errors.Wrapf(err, "failed to chmod %s", path)
+ 	}
+ 
+-	timespec := []unix.Timespec{unix.Timespec(fs.StatAtime(st)), unix.Timespec(fs.StatMtime(st))}
++	timespec := []unix.Timespec{
++		unix.NsecToTimespec(syscall.TimespecToNsec(fs.StatAtime(st))),
++		unix.NsecToTimespec(syscall.TimespecToNsec(fs.StatMtime(st))),
++	}
+ 	if err := unix.UtimesNanoAt(unix.AT_FDCWD, path, timespec, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+ 		return errors.Wrapf(err, "failed to utime %s", path)
+ 	}
+diff --git a/plugin/plugin_go18.go b/plugin/plugin_go18.go
+index 5b82db8685..927fe61965 100644
+--- a/plugin/plugin_go18.go
++++ b/plugin/plugin_go18.go
+@@ -1,4 +1,4 @@
+-// +build go1.8,!windows,amd64,!static_build
++// +build go1.8,!windows,amd64,!static_build,!gccgo
+ 
+ /*
+    Copyright The containerd Authors.
+diff --git a/plugin/plugin_other.go b/plugin/plugin_other.go
+index 2978f60fd3..0c5e14165c 100644
+--- a/plugin/plugin_other.go
++++ b/plugin/plugin_other.go
+@@ -1,4 +1,4 @@
+-// +build !go1.8 windows !amd64 static_build
++// +build !go1.8 windows !amd64 static_build gccgo
+ 
+ /*
+    Copyright The containerd Authors.
