@@ -2,14 +2,15 @@
 
 include /usr/share/dpkg/default.mk
 
-PKG      := github.com/containerd/containerd
-TAGS     := seccomp apparmor
-LDFLAGS  := -X $(PKG)/version.Version=$(DEB_VERSION)
-GEN_MAN  := $(CURDIR)/_build/src/$(PKG)/gen_man.go
-EXCLUDES += cmd/protoc-gen-gogoctrd cmd/gen-manpages cmd/containerd-stress
-EXCLUDES += runtime/v2/example/cmd
-CRI_FILE += cmd/containerd/builtins_cri_linux.go vendor/github.com/containerd/cri
-CRI_FILE += vendor/k8s.io vendor/sigs.k8s.io vendor/github.com/docker/docker
+PKG        := github.com/containerd/containerd
+TAGS       := seccomp apparmor
+GO_LDFLAGS += -X $(PKG)/version.Version=$(DEB_VERSION_UPSTREAM)
+GO_LDFLAGS += -X $(PKG)/version.Revision=$(DEB_VERSION)
+GEN_MAN    := $(CURDIR)/_build/src/$(PKG)/gen_man.go
+EXCLUDES   += cmd/protoc-gen-gogoctrd cmd/gen-manpages cmd/containerd-stress
+EXCLUDES   += runtime/v2/example/cmd
+CRI_FILE   += cmd/containerd/builtins_cri_linux.go vendor/github.com/containerd/cri
+CRI_FILE   += vendor/k8s.io vendor/sigs.k8s.io vendor/github.com/docker/docker
 
 ifneq (,$(filter $(DEB_HOST_ARCH), mipsel))
 TAGS     += no_btrfs
@@ -41,7 +42,7 @@ override_dh_auto_configure:
 	sed 's|/usr/local/bin|/usr/bin|' containerd.service > debian/containerd.service
 
 override_dh_auto_build:
-	dh_auto_build -- -tags '$(TAGS)' -ldflags '$(LDFLAGS)'
+	dh_auto_build -- -tags '$(TAGS)' -ldflags '$(GO_LDFLAGS)'
 
 override_dh_auto_test:
 	dh_auto_test -- -tags '$(TAGS)'
