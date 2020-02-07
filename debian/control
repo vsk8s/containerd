@@ -52,8 +52,8 @@ Build-Depends: debhelper-compat (= 12),
                golang-golang-x-sys-dev,
                golang-google-grpc-dev,
                golang-gopkg-inf.v0-dev,
-               golang-gopkg-yaml.v2-dev,
                golang-github-gotestyourself-gotest.tools-dev,
+               golang-k8s-sigs-yaml-dev,
 Standards-Version: 4.4.1
 Rules-Requires-Root: no
 Homepage: https://containerd.io/
