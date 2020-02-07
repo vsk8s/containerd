@@ -12,11 +12,6 @@ EXCLUDES   += runtime/v2/example/cmd
 CRI_FILE   += cmd/containerd/builtins_cri_linux.go vendor/github.com/containerd/cri
 CRI_FILE   += vendor/k8s.io vendor/github.com/docker/docker
 
-ifneq (,$(filter $(DEB_HOST_ARCH), mipsel))
-TAGS     += no_btrfs
-EXCLUDES += snapshots/btrfs
-endif
-
 ifneq (,$(findstring gccgo, $(shell go version)))
 TAGS     += no_cri
 EXCLUDES += $(CRI_FILE)

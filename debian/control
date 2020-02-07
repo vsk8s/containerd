@@ -10,7 +10,7 @@ Build-Depends: debhelper-compat (= 12),
                go-md2man,
                golang-any,
                golang-github-burntsushi-toml-dev,
-               golang-github-containerd-btrfs-dev,
+               golang-github-containerd-btrfs-dev (>= 0.0~git20200117.1539353~),
                golang-github-containerd-cgroups-dev (>= 0.0~git20190717.c4b9ac5~),
                golang-github-containerd-console-dev,
                golang-github-containerd-continuity-dev (>= 0.0~git20190827.75bee3e~),
@@ -89,7 +89,7 @@ Description: open and reliable container runtime
 Package: golang-github-containerd-containerd-dev
 Architecture: all
 Depends: golang-github-burntsushi-toml-dev,
-         golang-github-containerd-btrfs-dev,
+         golang-github-containerd-btrfs-dev (>= 0.0~git20200117.1539353~),
          golang-github-containerd-cgroups-dev (>= 0.0~git20190717.c4b9ac5~),
          golang-github-containerd-console-dev,
          golang-github-containerd-continuity-dev (>= 0.0~git20190827.75bee3e~),
