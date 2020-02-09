@@ -1,0 +1,30 @@
+From b5fa55b0c2837d033614c2c2ab1488d097aec2a0 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Manuel=20R=C3=BCger?= <manuel@rueg.eu>
+Date: Tue, 1 Oct 2019 09:29:02 +0200
+Subject: [PATCH] ctr: Enable shell autocompletion
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Manuel Rüger <manuel@rueg.eu>
+---
+ Makefile                                      |  2 +-
+ cmd/ctr/app/main.go                           |  1 +
+ .../urfave/cli/autocomplete/bash_autocomplete | 21 +++++++++++++++++++
+ .../urfave/cli/autocomplete/zsh_autocomplete  | 11 ++++++++++
+ 4 files changed, 34 insertions(+), 1 deletion(-)
+ create mode 100755 vendor/github.com/urfave/cli/autocomplete/bash_autocomplete
+ create mode 100644 vendor/github.com/urfave/cli/autocomplete/zsh_autocomplete
+
+diff --git a/cmd/ctr/app/main.go b/cmd/ctr/app/main.go
+index d0b277cf28..7c5127fc62 100644
+--- a/cmd/ctr/app/main.go
++++ b/cmd/ctr/app/main.go
+@@ -71,6 +71,7 @@ stable from release to release of the containerd project.`
+ 
+ containerd CLI
+ `
++	app.EnableBashCompletion = true
+ 	app.Flags = []cli.Flag{
+ 		cli.BoolFlag{
+ 			Name:  "debug",

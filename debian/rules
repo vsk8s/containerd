@@ -30,14 +30,20 @@ override_dh_auto_configure:
 	echo "//go:generate go run cmd/gen-manpages/main.go containerd $(CURDIR)/man" >> $(GEN_MAN)
 	echo "//go:generate go run cmd/gen-manpages/main.go ctr $(CURDIR)/man" >> $(GEN_MAN)
 
+override_dh_auto_build:
+	dh_auto_build -- -tags '$(TAGS)' -ldflags '$(GO_LDFLAGS)'
+
 	mkdir -p man
 	make man/containerd-config.1
 	make man/containerd-config.toml.5
 
 	sed 's|/usr/local/bin|/usr/bin|' containerd.service > debian/containerd.service
-
-override_dh_auto_build:
-	dh_auto_build -- -tags '$(TAGS)' -ldflags '$(GO_LDFLAGS)'
+	mkdir -vp debian/bash-completion
+	install -m644 -T /usr/share/gocode/src/github.com/urfave/cli/autocomplete/bash_autocomplete \
+		debian/bash-completion/ctr
+	mkdir -vp debian/zsh-completion
+	sed 's|$$PROG|ctr|g' /usr/share/gocode/src/github.com/urfave/cli/autocomplete/zsh_autocomplete > \
+		debian/zsh-completion/_ctr
 
 override_dh_auto_test:
 	dh_auto_test -- -tags '$(TAGS)'
