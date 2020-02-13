@@ -1,3 +1,14 @@
+containerd (1.3.3~ds1-2) unstable; urgency=medium
+
+  * Enable building btrfs plugin on mipsel.
+    Issue in golang-github-containerd-btrfs-dev is fixed in 0.0~git20200117.1539353-1
+  * Add bash/zsh completion script for ctr
+  * Set CGO_CFLAGS and CGO_CPPFLAGS with dpkg-buildflags.
+    This should fix reproducible-build, by adding one more
+    -fdebug-prefix-map for source files
+
+ -- Shengjing Zhu <zhsj@debian.org>  Thu, 13 Feb 2020 22:37:29 +0800
+
 containerd (1.3.3~ds1-1) unstable; urgency=medium
 
   * New upstream version 1.3.3~ds1
