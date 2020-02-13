@@ -19,6 +19,8 @@ endif
 
 export DH_GOLANG_GO_GENERATE := 1
 export DH_GOLANG_EXCLUDES    := $(EXCLUDES)
+export CGO_CFLAGS            := $(CFLAGS)
+export CGO_CPPFLAGS          := $(CPPFLAGS)
 
 %:
 	dh $@ --buildsystem=golang --with=golang --builddirectory=_build
