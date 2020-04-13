@@ -17,6 +17,13 @@ TAGS     += no_cri
 EXCLUDES += $(CRI_FILE)
 endif
 
+# riscv64 doesn't support cgo
+# https://github.com/golang/go/issues/36641
+ifeq (0, $(shell go env CGO_ENABLED))
+TAGS     += no_btrfs
+EXCLUDES += snapshots/btrfs
+endif
+
 export DH_GOLANG_GO_GENERATE := 1
 export DH_GOLANG_EXCLUDES    := $(EXCLUDES)
 export CGO_CFLAGS            := $(CFLAGS)
