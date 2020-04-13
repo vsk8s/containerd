@@ -29,14 +29,14 @@ override_dh_auto_configure:
 	dh_auto_configure
 
 	echo "package containerd" >> $(GEN_MAN)
-	echo "//go:generate go run cmd/gen-manpages/main.go containerd $(CURDIR)/man" >> $(GEN_MAN)
-	echo "//go:generate go run cmd/gen-manpages/main.go ctr $(CURDIR)/man" >> $(GEN_MAN)
+	echo "//go:generate go run cmd/gen-manpages/main.go containerd.8 $(CURDIR)/man" >> $(GEN_MAN)
+	echo "//go:generate go run cmd/gen-manpages/main.go ctr.8 $(CURDIR)/man" >> $(GEN_MAN)
 
 override_dh_auto_build:
 	dh_auto_build -- -tags '$(TAGS)' -ldflags '$(GO_LDFLAGS)'
 
 	mkdir -p man
-	make man/containerd-config.1
+	make man/containerd-config.8
 	make man/containerd-config.toml.5
 
 	sed 's|/usr/local/bin|/usr/bin|' containerd.service > debian/containerd.service

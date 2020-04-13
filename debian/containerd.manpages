@@ -1,4 +1,4 @@
-man/containerd-config.1
+man/containerd-config.8
 man/containerd-config.toml.5
-man/containerd.1
-man/ctr.1
+man/containerd.8
+man/ctr.8
