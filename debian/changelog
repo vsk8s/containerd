@@ -1,3 +1,11 @@
+containerd (1.3.4~ds1-1) unstable; urgency=medium
+
+  * New upstream version 1.3.4~ds1
+  * Disable btrfs plugin on riscv64.
+    As this plugin needs cgo and riscv64 doesn't support
+
+ -- Shengjing Zhu <zhsj@debian.org>  Fri, 24 Apr 2020 22:52:10 +0800
+
 containerd (1.3.3.59~ds1-1) experimental; urgency=medium
 
   * New upstream snapshot.
