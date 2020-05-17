@@ -1,0 +1,39 @@
+From: Shengjing Zhu <zhsj@debian.org>
+Date: Tue, 19 May 2020 17:36:43 +0800
+Subject: disable runhcs option in cri config
+
+---
+ vendor/github.com/containerd/cri/pkg/server/helpers.go | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/vendor/github.com/containerd/cri/pkg/server/helpers.go b/vendor/github.com/containerd/cri/pkg/server/helpers.go
+index 34da9a2..7f9b065 100644
+--- a/vendor/github.com/containerd/cri/pkg/server/helpers.go
++++ b/vendor/github.com/containerd/cri/pkg/server/helpers.go
+@@ -24,7 +24,6 @@ import (
+ 	"strings"
+ 
+ 	"github.com/BurntSushi/toml"
+-	runhcsoptions "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/options"
+ 	"github.com/containerd/containerd"
+ 	"github.com/containerd/containerd/containers"
+ 	"github.com/containerd/containerd/plugin"
+@@ -87,9 +86,6 @@ const (
+ 
+ 	// defaultIfName is the default network interface for the pods
+ 	defaultIfName = "eth0"
+-
+-	// runtimeRunhcsV1 is the runtime type for runhcs.
+-	runtimeRunhcsV1 = "io.containerd.runhcs.v1"
+ )
+ 
+ // makeSandboxName generates sandbox name from sandbox metadata. The name
+@@ -325,8 +321,6 @@ func getRuntimeOptionsType(t string) interface{} {
+ 		return &runcoptions.Options{}
+ 	case plugin.RuntimeLinuxV1:
+ 		return &runctypes.RuncOptions{}
+-	case runtimeRunhcsV1:
+-		return &runhcsoptions.Options{}
+ 	default:
+ 		return &runtimeoptions.Options{}
+ 	}

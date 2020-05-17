@@ -1,4 +1,5 @@
-mipsel.patch
-pr-3706.patch
-pr-3935.patch
-pr-3963.patch
+0001-disable-windows-support-in-ctr-metric.patch
+0002-Add-go.mod-file.patch
+0003-disable-runhcs-option-in-cri-config.patch
+0004-reduce-ocicrypt-dependency.patch
+0005-use-gotest.tools-v2.patch
