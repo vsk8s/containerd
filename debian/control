@@ -70,7 +70,6 @@ Depends: runc (>= 0.1.0~),
          ${misc:Depends},
          ${shlibs:Depends},
 Suggests: containernetworking-plugins,
-          socat,
 Built-Using: ${misc:Built-Using},
 Description: open and reliable container runtime
  Containerd is an industry-standard container runtime with an emphasis on
