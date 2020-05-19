@@ -188,7 +188,7 @@ func TestBadTokenResolver(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error getting token with inssufficient scope")
 	}
-	if errors.Cause(err) != ErrInvalidAuthorization {
+	if !errors.Is(err, ErrInvalidAuthorization) {
 		t.Fatal(err)
 	}
 }
@@ -491,7 +491,7 @@ func (m testManifest) OCIManifest() []byte {
 		Config: m.config.Descriptor(),
 		Layers: make([]ocispec.Descriptor, len(m.references)),
 	}
-	for i, c := range append(m.references) {
+	for i, c := range m.references {
 		manifest.Layers[i] = c.Descriptor()
 	}
 	b, _ := json.Marshal(manifest)

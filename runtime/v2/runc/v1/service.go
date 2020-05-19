@@ -20,7 +20,6 @@ package v1
 
 import (
 	"context"
-	"encoding/json"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -33,7 +32,6 @@ import (
 	eventstypes "github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/api/types/task"
 	"github.com/containerd/containerd/errdefs"
-	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/pkg/oom"
@@ -47,9 +45,7 @@ import (
 	runcC "github.com/containerd/go-runc"
 	"github.com/containerd/typeurl"
 	"github.com/gogo/protobuf/proto"
-	"github.com/gogo/protobuf/types"
 	ptypes "github.com/gogo/protobuf/types"
-	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -169,7 +165,7 @@ func (s *service) StartShim(ctx context.Context, id, containerdBinary, container
 	}
 	if data, err := ioutil.ReadAll(os.Stdin); err == nil {
 		if len(data) > 0 {
-			var any types.Any
+			var any ptypes.Any
 			if err := proto.Unmarshal(data, &any); err != nil {
 				return "", err
 			}
@@ -273,8 +269,12 @@ func (s *service) Start(ctx context.Context, r *taskAPI.StartRequest) (*taskAPI.
 	}
 	switch r.ExecID {
 	case "":
-		if err := s.ep.Add(container.ID, container.Cgroup()); err != nil {
-			logrus.WithError(err).Error("add cg to OOM monitor")
+		if cg, ok := container.Cgroup().(cgroups.Cgroup); ok {
+			if err := s.ep.Add(container.ID, cg); err != nil {
+				logrus.WithError(err).Error("add cg to OOM monitor")
+			}
+		} else {
+			logrus.WithError(errdefs.ErrNotImplemented).Error("add cg to OOM monitor")
 		}
 		s.send(&eventstypes.TaskStart{
 			ContainerID: container.ID,
@@ -545,7 +545,14 @@ func (s *service) Shutdown(ctx context.Context, r *taskAPI.ShutdownRequest) (*pt
 }
 
 func (s *service) Stats(ctx context.Context, r *taskAPI.StatsRequest) (*taskAPI.StatsResponse, error) {
-	cg := s.container.Cgroup()
+	cgx := s.container.Cgroup()
+	if cgx == nil {
+		return nil, errdefs.ToGRPCf(errdefs.ErrNotFound, "cgroup does not exist")
+	}
+	cg, ok := cgx.(cgroups.Cgroup)
+	if !ok {
+		return nil, errdefs.ToGRPCf(errdefs.ErrNotImplemented, "cgroup v2 not implemented for Stats")
+	}
 	if cg == nil {
 		return nil, errdefs.ToGRPCf(errdefs.ErrNotFound, "cgroup does not exist")
 	}
@@ -584,14 +591,9 @@ func (s *service) checkProcesses(e runcC.Exit) {
 		return
 	}
 
-	shouldKillAll, err := shouldKillAllOnExit(container.Bundle)
-	if err != nil {
-		log.G(s.context).WithError(err).Error("failed to check shouldKillAll")
-	}
-
 	for _, p := range container.All() {
 		if p.Pid() == e.Pid {
-			if shouldKillAll {
+			if runc.ShouldKillAllOnExit(s.context, container.Bundle) {
 				if ip, ok := p.(*process.Init); ok {
 					// Ensure all children are killed
 					if err := ip.KillAll(s.context); err != nil {
@@ -611,25 +613,6 @@ func (s *service) checkProcesses(e runcC.Exit) {
 			return
 		}
 	}
-}
-
-func shouldKillAllOnExit(bundlePath string) (bool, error) {
-	var bundleSpec specs.Spec
-	bundleConfigContents, err := ioutil.ReadFile(filepath.Join(bundlePath, "config.json"))
-	if err != nil {
-		return false, err
-	}
-	json.Unmarshal(bundleConfigContents, &bundleSpec)
-
-	if bundleSpec.Linux != nil {
-		for _, ns := range bundleSpec.Linux.Namespaces {
-			if ns.Type == specs.PIDNamespace && ns.Path == "" {
-				return false, nil
-			}
-		}
-	}
-
-	return true, nil
 }
 
 func (s *service) getContainerPids(ctx context.Context, id string) ([]uint32, error) {
