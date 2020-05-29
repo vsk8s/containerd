@@ -2,6 +2,9 @@ name: Nightly
 on:
   schedule:
     - cron: '0 0 * * *' # Every day at midnight
+  pull_request:
+    paths:
+      - '.github/workflows/nightly.yml'
 
 jobs:
   linux:
@@ -12,7 +15,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v1
         with:
-          go-version: '1.13.10'
+          go-version: '1.13.11'
 
       - name: Checkout
         uses: actions/checkout@v1
@@ -123,7 +126,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v1
         with:
-          go-version: '1.13.10'
+          go-version: '1.13.11'
 
       - name: Checkout
         uses: actions/checkout@v1
