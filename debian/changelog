@@ -1,3 +1,15 @@
+containerd (1.4.0~beta1~ds1-1) experimental; urgency=medium
+
+  * New upstream version 1.4.0~beta1~ds1
+  * Revert "Add socat to Suggests, it's used by containerd CRI plugin"
+    CRI 1.4 doesn't need socat
+  * Fix `go env` command without writable HOME.
+    The command failed with:
+    failed to initialize build cache at /sbuild-nonexistent/.cache/go-build:
+    mkdir /sbuild-nonexistent: permission denied
+
+ -- Shengjing Zhu <zhsj@debian.org>  Fri, 29 May 2020 14:00:27 +0800
+
 containerd (1.4.0~beta0~ds1-1) experimental; urgency=medium
 
   * Add socat to Suggests, it's used by containerd CRI plugin
