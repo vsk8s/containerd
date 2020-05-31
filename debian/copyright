@@ -18,18 +18,7 @@ Files-Excluded:
   vendor/github.com/containerd/ttrpc
   vendor/github.com/containerd/typeurl
   ~~vendor/github.com/containerd/zfs
-  vendor/github.com/containers/ocicrypt/blockcipher
-  ~~vendor/github.com/containers/ocicrypt/config
-  vendor/github.com/containers/ocicrypt/encryption.go
-  vendor/github.com/containers/ocicrypt/go.mod
-  vendor/github.com/containers/ocicrypt/gpg.go
-  vendor/github.com/containers/ocicrypt/gpgvault.go
-  vendor/github.com/containers/ocicrypt/keywrap
-  vendor/github.com/containers/ocicrypt/LICENSE
-  vendor/github.com/containers/ocicrypt/reader.go
-  vendor/github.com/containers/ocicrypt/README.md
-  ~~vendor/github.com/containers/ocicrypt/spec
-  vendor/github.com/containers/ocicrypt/utils
+  vendor/github.com/containers/ocicrypt
   vendor/github.com/containernetworking/cni
   vendor/github.com/containernetworking/plugins
   vendor/github.com/coreos/go-systemd
