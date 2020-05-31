@@ -10,7 +10,7 @@ GEN_MAN    := $(CURDIR)/_build/src/$(PKG)/gen_man.go
 EXCLUDES   += cmd/protoc-gen-gogoctrd cmd/gen-manpages cmd/containerd-stress
 EXCLUDES   += runtime/v2/example/cmd
 CRI_FILE   += cmd/containerd/builtins_cri.go vendor/github.com/containerd/cri
-CRI_FILE   += vendor/k8s.io vendor/sigs.k8s.io vendor/github.com/docker/docker
+CRI_FILE   += vendor/k8s.io vendor/github.com/docker/docker
 CRI_FILE   += vendor/github.com/containers vendor/github.com/containerd/imgcrypt
 
 ifneq (,$(findstring gccgo, $(shell go version)))

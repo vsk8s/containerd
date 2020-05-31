@@ -103,7 +103,7 @@ Files-Excluded:
   ~~vendor/k8s.io/kubernetes
   ~~vendor/k8s.io/utils
   vendor/sigs.k8s.io/yaml
-  ~~vendor/sigs.k8s.io/structured-merge-diff
+  vendor/sigs.k8s.io/structured-merge-diff
 
 Files: *
 Copyright: 2013-2016 Docker, Inc.
