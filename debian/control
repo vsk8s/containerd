@@ -54,7 +54,7 @@ Build-Depends: debhelper-compat (= 12),
                golang-golang-x-sys-dev,
                golang-google-grpc-dev,
                golang-gopkg-inf.v0-dev,
-               golang-github-gotestyourself-gotest.tools-dev,
+               golang-github-gotestyourself-gotest.tools-dev (>= 3.0.0~),
                golang-k8s-sigs-structured-merge-diff-dev,
                golang-k8s-sigs-yaml-dev,
 Standards-Version: 4.5.0

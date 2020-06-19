@@ -2,4 +2,3 @@
 0002-Add-go.mod-file.patch
 0003-disable-runhcs-option-in-cri-config.patch
 0004-reduce-ocicrypt-dependency.patch
-0005-use-gotest.tools-v2.patch
