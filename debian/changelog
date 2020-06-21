@@ -1,3 +1,14 @@
+containerd (1.3.4~ds1-2) unstable; urgency=medium
+
+  * Add socat to Suggests, it's used by containerd CRI plugin
+  * Fix `go env` command without writable HOME.
+    The command failed with:
+    failed to initialize build cache at /sbuild-nonexistent/.cache/go-build:
+    mkdir /sbuild-nonexistent: permission denied
+  * Add golang-github-google-gofuzz-dev to Build-Depends (Closes: #963455)
+
+ -- Shengjing Zhu <zhsj@debian.org>  Mon, 22 Jun 2020 04:46:21 +0800
+
 containerd (1.3.4~ds1-1) unstable; urgency=medium
 
   * New upstream version 1.3.4~ds1
