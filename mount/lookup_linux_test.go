@@ -31,7 +31,7 @@ import (
 	// so we use continuity/testutil instead.
 	"github.com/containerd/continuity/testutil"
 	"github.com/containerd/continuity/testutil/loopback"
-	"gotest.tools/v3/assert"
+	"gotest.tools/assert"
 )
 
 func checkLookup(t *testing.T, fsType, mntPoint, dir string) {

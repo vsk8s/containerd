@@ -15,7 +15,7 @@ linters:
     - errcheck
 
 run:
-  timeout: 3m
+  deadline: 3m
   skip-dirs:
     - api
     - design

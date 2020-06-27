@@ -32,9 +32,7 @@ const (
 )
 
 var (
-	testImage    string
-	shortCommand = withProcessArgs("true")
-	longCommand  = withProcessArgs("/bin/sh", "-c", "while true; do sleep 1; done")
+	testImage string
 )
 
 func init() {

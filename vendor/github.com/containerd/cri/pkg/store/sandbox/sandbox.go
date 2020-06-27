@@ -1,17 +1,17 @@
 /*
-   Copyright The containerd Authors.
+Copyright 2017 The Kubernetes Authors.
 
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 */
 
 package sandbox
@@ -20,7 +20,6 @@ import (
 	"sync"
 
 	"github.com/containerd/containerd"
-	"github.com/containerd/cri/pkg/store/label"
 	"github.com/docker/docker/pkg/truncindex"
 
 	"github.com/containerd/cri/pkg/netns"
@@ -63,15 +62,13 @@ type Store struct {
 	lock      sync.RWMutex
 	sandboxes map[string]Sandbox
 	idIndex   *truncindex.TruncIndex
-	labels    *label.Store
 }
 
 // NewStore creates a sandbox store.
-func NewStore(labels *label.Store) *Store {
+func NewStore() *Store {
 	return &Store{
 		sandboxes: make(map[string]Sandbox),
 		idIndex:   truncindex.NewTruncIndex([]string{}),
-		labels:    labels,
 	}
 }
 
@@ -81,9 +78,6 @@ func (s *Store) Add(sb Sandbox) error {
 	defer s.lock.Unlock()
 	if _, ok := s.sandboxes[sb.ID]; ok {
 		return store.ErrAlreadyExist
-	}
-	if err := s.labels.Reserve(sb.ProcessLabel); err != nil {
-		return err
 	}
 	if err := s.idIndex.Add(sb.ID); err != nil {
 		return err
@@ -131,7 +125,6 @@ func (s *Store) Delete(id string) {
 		// So we need to return if there are error.
 		return
 	}
-	s.labels.Release(s.sandboxes[id].ProcessLabel)
 	s.idIndex.Delete(id) // nolint: errcheck
 	delete(s.sandboxes, id)
 }

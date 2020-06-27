@@ -22,7 +22,6 @@ import (
 
 	"github.com/containerd/containerd/cmd/ctr/commands"
 	"github.com/containerd/containerd/events"
-	"github.com/containerd/containerd/log"
 	"github.com/containerd/typeurl"
 	"github.com/urfave/cli"
 
@@ -55,13 +54,11 @@ var Command = cli.Command{
 				if e.Event != nil {
 					v, err := typeurl.UnmarshalAny(e.Event)
 					if err != nil {
-						log.G(ctx).WithError(err).Warn("cannot unmarshal an event from Any")
-						continue
+						return err
 					}
 					out, err = json.Marshal(v)
 					if err != nil {
-						log.G(ctx).WithError(err).Warn("cannot marshal Any into JSON")
-						continue
+						return err
 					}
 				}
 				if _, err := fmt.Println(

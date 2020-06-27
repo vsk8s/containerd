@@ -21,7 +21,7 @@ package cio
 import (
 	"testing"
 
-	"gotest.tools/v3/assert"
+	"gotest.tools/assert"
 )
 
 func TestNewFifoSetInDir_NoTerminal(t *testing.T) {

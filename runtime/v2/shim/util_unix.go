@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/containerd/pkg/dialer"
 	"github.com/containerd/containerd/sys"
 	"github.com/pkg/errors"
 )
@@ -76,7 +75,7 @@ func SocketAddress(ctx context.Context, id string) (string, error) {
 // AnonDialer returns a dialer for an abstract socket
 func AnonDialer(address string, timeout time.Duration) (net.Conn, error) {
 	address = strings.TrimPrefix(address, "unix://")
-	return dialer.Dialer("\x00"+address, timeout)
+	return net.DialTimeout("unix", "\x00"+address, timeout)
 }
 
 func AnonReconnectDialer(address string, timeout time.Duration) (net.Conn, error) {

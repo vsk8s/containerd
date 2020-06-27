@@ -134,13 +134,13 @@ func (z *snapshotter) Usage(ctx context.Context, key string) (snapshots.Usage, e
 }
 
 // Walk the committed snapshots.
-func (z *snapshotter) Walk(ctx context.Context, fn snapshots.WalkFunc, filters ...string) error {
+func (z *snapshotter) Walk(ctx context.Context, fn func(context.Context, snapshots.Info) error) error {
 	ctx, t, err := z.ms.TransactionContext(ctx, false)
 	if err != nil {
 		return err
 	}
 	defer t.Rollback()
-	return storage.WalkInfo(ctx, fn, filters...)
+	return storage.WalkInfo(ctx, fn)
 }
 
 func (z *snapshotter) Prepare(ctx context.Context, key, parent string, opts ...snapshots.Opt) ([]mount.Mount, error) {
@@ -227,7 +227,7 @@ func (z *snapshotter) Commit(ctx context.Context, name, key string, opts ...snap
 		}
 	}()
 
-	id, err := storage.CommitActive(ctx, key, name, snapshots.Usage{}, opts...)
+	id, err := storage.CommitActive(ctx, key, name, snapshots.Usage{})
 	if err != nil {
 		return errors.Wrap(err, "failed to commit")
 	}

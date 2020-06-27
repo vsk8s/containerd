@@ -50,6 +50,7 @@ func init() {
 			return New(ic.Root)
 		},
 	})
+
 }
 
 var (
@@ -243,13 +244,13 @@ func (o *snapshotter) Remove(ctx context.Context, key string) (err error) {
 }
 
 // Walk the committed snapshots.
-func (o *snapshotter) Walk(ctx context.Context, fn snapshots.WalkFunc, filters ...string) error {
+func (o *snapshotter) Walk(ctx context.Context, fn func(context.Context, snapshots.Info) error) error {
 	ctx, t, err := o.ms.TransactionContext(ctx, false)
 	if err != nil {
 		return err
 	}
 	defer t.Rollback()
-	return storage.WalkInfo(ctx, fn, filters...)
+	return storage.WalkInfo(ctx, fn)
 }
 
 func (o *snapshotter) createSnapshot(ctx context.Context, kind snapshots.Kind, key, parent string, opts []snapshots.Opt) ([]mount.Mount, error) {
@@ -399,11 +400,10 @@ func (o *snapshotter) upperPath(id string) string {
 
 func supported() error {
 	// modprobe the aufs module before checking
-	var probeError string
 	cmd := exec.Command("modprobe", "aufs")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		probeError = fmt.Sprintf(" (modprobe aufs failed: %v %q)", err, out)
+		return errors.Wrapf(err, "modprobe aufs failed: %q", out)
 	}
 
 	f, err := os.Open("/proc/filesystems")
@@ -418,7 +418,7 @@ func supported() error {
 			return nil
 		}
 	}
-	return errors.Errorf("aufs is not supported" + probeError)
+	return errors.Errorf("aufs is not supported")
 }
 
 // useDirperm checks dirperm1 mount option can be used with the current

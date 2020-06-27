@@ -227,6 +227,9 @@ func copy(wg *sync.WaitGroup, r io.Reader, pri journal.Priority, vars map[string
 	defer wg.Done()
 	s := bufio.NewScanner(r)
 	for s.Scan() {
+		if s.Err() != nil {
+			return
+		}
 		journal.Send(s.Text(), pri, vars)
 	}
 }

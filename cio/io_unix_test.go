@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gotest.tools/v3/assert"
+	"gotest.tools/assert"
 )
 
 func TestOpenFifos(t *testing.T) {

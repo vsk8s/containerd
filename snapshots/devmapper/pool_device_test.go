@@ -34,7 +34,7 @@ import (
 	"github.com/containerd/containerd/snapshots/devmapper/losetup"
 	"github.com/docker/go-units"
 	"github.com/sirupsen/logrus"
-	"gotest.tools/v3/assert"
+	"gotest.tools/assert"
 )
 
 const (

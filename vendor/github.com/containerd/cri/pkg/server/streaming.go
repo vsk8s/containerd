@@ -1,23 +1,22 @@
 /*
-   Copyright The containerd Authors.
+Copyright 2017 The Kubernetes Authors.
 
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 */
 
 package server
 
 import (
-	"context"
 	"crypto/tls"
 	"io"
 	"math"
@@ -26,6 +25,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/net/context"
 	k8snet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/remotecommand"
@@ -68,7 +68,7 @@ func getStreamListenerMode(c *criService) (streamListenerMode, error) {
 
 func newStreamServer(c *criService, addr, port, streamIdleTimeout string) (streaming.Server, error) {
 	if addr == "" {
-		a, err := k8snet.ResolveBindAddress(nil)
+		a, err := k8snet.ChooseBindAddress(nil)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get stream server address")
 		}
@@ -156,13 +156,13 @@ func (s *streamRuntime) PortForward(podSandboxID string, port int32, stream io.R
 	if port <= 0 || port > math.MaxUint16 {
 		return errors.Errorf("invalid port %d", port)
 	}
-	ctx := ctrdutil.NamespacedContext()
-	return s.c.portForward(ctx, podSandboxID, port, stream)
+	return s.c.portForward(context.Background(), podSandboxID, port, stream)
 }
 
 // handleResizing spawns a goroutine that processes the resize channel, calling resizeFunc for each
-// remotecommand.TerminalSize received from the channel.
-func handleResizing(ctx context.Context, resize <-chan remotecommand.TerminalSize, resizeFunc func(size remotecommand.TerminalSize)) {
+// remotecommand.TerminalSize received from the channel. The resize channel must be closed elsewhere to stop the
+// goroutine.
+func handleResizing(resize <-chan remotecommand.TerminalSize, resizeFunc func(size remotecommand.TerminalSize)) {
 	if resize == nil {
 		return
 	}
@@ -171,18 +171,14 @@ func handleResizing(ctx context.Context, resize <-chan remotecommand.TerminalSiz
 		defer runtime.HandleCrash()
 
 		for {
-			select {
-			case <-ctx.Done():
+			size, ok := <-resize
+			if !ok {
 				return
-			case size, ok := <-resize:
-				if !ok {
-					return
-				}
-				if size.Height < 1 || size.Width < 1 {
-					continue
-				}
-				resizeFunc(size)
 			}
+			if size.Height < 1 || size.Width < 1 {
+				continue
+			}
+			resizeFunc(size)
 		}
 	}()
 }

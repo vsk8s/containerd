@@ -28,8 +28,9 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/docker/distribution/registry/api/errcode"
 	"github.com/pkg/errors"
-	"gotest.tools/v3/assert"
+	"gotest.tools/assert"
 )
 
 func TestFetcherOpen(t *testing.T) {
@@ -130,8 +131,8 @@ func TestDockerFetcherOpen(t *testing.T) {
 		{
 			name:         "should return status and error.message if it exists if the registry request fails",
 			mockedStatus: 500,
-			mockedErr: Errors{Error{
-				Code:    ErrorCodeUnknown,
+			mockedErr: errcode.Errors{errcode.Error{
+				Code:    errcode.ErrorCodeUnknown,
 				Message: "Test Error",
 			}},
 			want:                   nil,

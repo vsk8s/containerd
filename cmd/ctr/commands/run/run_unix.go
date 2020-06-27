@@ -21,7 +21,6 @@ package run
 import (
 	gocontext "context"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/containerd/containerd"
@@ -30,31 +29,12 @@ import (
 	"github.com/containerd/containerd/contrib/seccomp"
 	"github.com/containerd/containerd/oci"
 	"github.com/containerd/containerd/platforms"
-	"github.com/containerd/containerd/runtime/v2/runc/options"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
 
-var platformRunFlags = []cli.Flag{
-	cli.StringFlag{
-		Name:  "runc-binary",
-		Usage: "specify runc-compatible binary",
-	},
-	cli.BoolFlag{
-		Name:  "runc-systemd-cgroup",
-		Usage: "start runc with systemd cgroup manager",
-	},
-	cli.StringFlag{
-		Name:  "uidmap",
-		Usage: "run inside a user namespace with the specified UID mapping range; specified with the format `container-uid:host-uid:length`",
-	},
-	cli.StringFlag{
-		Name:  "gidmap",
-		Usage: "run inside a user namespace with the specified GID mapping range; specified with the format `container-gid:host-gid:length`",
-	},
-}
+var platformRunFlags []cli.Flag
 
 // NewContainer creates a new container
 func NewContainer(ctx gocontext.Context, client *containerd.Client, context *cli.Context) (containerd.Container, error) {
@@ -125,32 +105,14 @@ func NewContainer(ctx gocontext.Context, client *containerd.Client, context *cli
 			opts = append(opts, oci.WithImageConfig(image))
 			cOpts = append(cOpts,
 				containerd.WithImage(image),
-				containerd.WithSnapshotter(snapshotter))
-			if uidmap, gidmap := context.String("uidmap"), context.String("gidmap"); uidmap != "" && gidmap != "" {
-				uidMap, err := parseIDMapping(uidmap)
-				if err != nil {
-					return nil, err
-				}
-				gidMap, err := parseIDMapping(gidmap)
-				if err != nil {
-					return nil, err
-				}
-				opts = append(opts,
-					oci.WithUserNamespace([]specs.LinuxIDMapping{uidMap}, []specs.LinuxIDMapping{gidMap}))
-				if context.Bool("read-only") {
-					cOpts = append(cOpts, containerd.WithRemappedSnapshotView(id, image, uidMap.HostID, gidMap.HostID))
-				} else {
-					cOpts = append(cOpts, containerd.WithRemappedSnapshot(id, image, uidMap.HostID, gidMap.HostID))
-				}
-			} else {
-				// Even when "read-only" is set, we don't use KindView snapshot here. (#1495)
+				containerd.WithSnapshotter(snapshotter),
+				// Even when "readonly" is set, we don't use KindView snapshot here. (#1495)
 				// We pass writable snapshot to the OCI runtime, and the runtime remounts it as read-only,
 				// after creating some mount points on demand.
-				cOpts = append(cOpts, containerd.WithNewSnapshot(id, image))
-			}
-			cOpts = append(cOpts, containerd.WithImageStopSignal(image, "SIGTERM"))
+				containerd.WithNewSnapshot(id, image),
+				containerd.WithImageStopSignal(image, "SIGTERM"))
 		}
-		if context.Bool("read-only") {
+		if context.Bool("readonly") {
 			opts = append(opts, oci.WithRootFSReadonly())
 		}
 		if len(args) > 0 {
@@ -163,7 +125,7 @@ func NewContainer(ctx gocontext.Context, client *containerd.Client, context *cli
 			opts = append(opts, oci.WithTTY)
 		}
 		if context.Bool("privileged") {
-			opts = append(opts, oci.WithPrivileged, oci.WithAllDevicesAllowed, oci.WithHostDevices)
+			opts = append(opts, oci.WithPrivileged)
 		}
 		if context.Bool("net-host") {
 			opts = append(opts, oci.WithHostNamespace(specs.NetworkNamespace), oci.WithHostHostsFile, oci.WithHostResolvconf)
@@ -205,11 +167,7 @@ func NewContainer(ctx gocontext.Context, client *containerd.Client, context *cli
 		}
 	}
 
-	runtimeOpts, err := getRuntimeOptions(context)
-	if err != nil {
-		return nil, err
-	}
-	cOpts = append(cOpts, containerd.WithRuntime(context.String("runtime"), runtimeOpts))
+	cOpts = append(cOpts, containerd.WithRuntime(context.String("runtime"), nil))
 
 	opts = append(opts, oci.WithAnnotations(commands.LabelArgs(context.StringSlice("label"))))
 	var s specs.Spec
@@ -222,82 +180,11 @@ func NewContainer(ctx gocontext.Context, client *containerd.Client, context *cli
 	return client.NewContainer(ctx, id, cOpts...)
 }
 
-func getRuncOptions(context *cli.Context) (*options.Options, error) {
-	runtimeOpts := &options.Options{}
-	if runcBinary := context.String("runc-binary"); runcBinary != "" {
-		runtimeOpts.BinaryName = runcBinary
-	}
-	if context.Bool("runc-systemd-cgroup") {
-		if context.String("cgroup") == "" {
-			// runc maps "machine.slice:foo:deadbeef" to "/machine.slice/foo-deadbeef.scope"
-			return nil, errors.New("option --runc-systemd-cgroup requires --cgroup to be set, e.g. \"machine.slice:foo:deadbeef\"")
-		}
-		runtimeOpts.SystemdCgroup = true
-	}
-
-	return runtimeOpts, nil
-}
-
-func getRuntimeOptions(context *cli.Context) (interface{}, error) {
-	// validate first
-	if (context.String("runc-binary") != "" || context.Bool("runc-systemd-cgroup")) &&
-		context.String("runtime") != "io.containerd.runc.v2" {
-		return nil, errors.New("specifying runc-binary and runc-systemd-cgroup is only supported for \"io.containerd.runc.v2\" runtime")
-	}
-
-	if context.String("runtime") == "io.containerd.runc.v2" {
-		return getRuncOptions(context)
-	}
-
-	return nil, nil
-}
-
 func getNewTaskOpts(context *cli.Context) []containerd.NewTaskOpts {
-	var (
-		tOpts []containerd.NewTaskOpts
-	)
 	if context.Bool("no-pivot") {
-		tOpts = append(tOpts, containerd.WithNoPivotRoot)
+		return []containerd.NewTaskOpts{containerd.WithNoPivotRoot}
 	}
-	if uidmap := context.String("uidmap"); uidmap != "" {
-		uidMap, err := parseIDMapping(uidmap)
-		if err != nil {
-			logrus.WithError(err).Warn("unable to parse uidmap; defaulting to uid 0 IO ownership")
-		}
-		tOpts = append(tOpts, containerd.WithUIDOwner(uidMap.HostID))
-	}
-	if gidmap := context.String("gidmap"); gidmap != "" {
-		gidMap, err := parseIDMapping(gidmap)
-		if err != nil {
-			logrus.WithError(err).Warn("unable to parse gidmap; defaulting to gid 0 IO ownership")
-		}
-		tOpts = append(tOpts, containerd.WithGIDOwner(gidMap.HostID))
-	}
-	return tOpts
-}
-
-func parseIDMapping(mapping string) (specs.LinuxIDMapping, error) {
-	parts := strings.Split(mapping, ":")
-	if len(parts) != 3 {
-		return specs.LinuxIDMapping{}, errors.New("user namespace mappings require the format `container-id:host-id:size`")
-	}
-	cID, err := strconv.ParseUint(parts[0], 0, 16)
-	if err != nil {
-		return specs.LinuxIDMapping{}, errors.Wrapf(err, "invalid container id for user namespace remapping")
-	}
-	hID, err := strconv.ParseUint(parts[1], 0, 16)
-	if err != nil {
-		return specs.LinuxIDMapping{}, errors.Wrapf(err, "invalid host id for user namespace remapping")
-	}
-	size, err := strconv.ParseUint(parts[2], 0, 16)
-	if err != nil {
-		return specs.LinuxIDMapping{}, errors.Wrapf(err, "invalid size for user namespace remapping")
-	}
-	return specs.LinuxIDMapping{
-		ContainerID: uint32(cID),
-		HostID:      uint32(hID),
-		Size:        uint32(size),
-	}, nil
+	return nil
 }
 
 func validNamespace(ns string) bool {

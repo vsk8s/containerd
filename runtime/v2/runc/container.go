@@ -20,13 +20,13 @@ package runc
 
 import (
 	"context"
+	"encoding/json"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
 
 	"github.com/containerd/cgroups"
-	cgroupsv2 "github.com/containerd/cgroups/v2"
 	"github.com/containerd/console"
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/mount"
@@ -88,6 +88,10 @@ func NewContainer(ctx context.Context, platform stdio.Platform, r *task.CreateTa
 		Options:          r.Options,
 	}
 
+	if err := WriteOptions(r.Bundle, opts); err != nil {
+		return nil, err
+	}
+	// For historical reason, we write opts.BinaryName as well as the entire opts
 	if err := WriteRuntime(r.Bundle, opts.BinaryName); err != nil {
 		return nil, err
 	}
@@ -134,26 +138,46 @@ func NewContainer(ctx context.Context, platform stdio.Platform, r *task.CreateTa
 	}
 	pid := p.Pid()
 	if pid > 0 {
-		var cg interface{}
-		if cgroups.Mode() == cgroups.Unified {
-			g, err := cgroupsv2.PidGroupPath(pid)
-			if err != nil {
-				logrus.WithError(err).Errorf("loading cgroup2 for %d", pid)
-				return container, nil
-			}
-			cg, err = cgroupsv2.LoadManager("/sys/fs/cgroup", g)
-			if err != nil {
-				logrus.WithError(err).Errorf("loading cgroup2 for %d", pid)
-			}
-		} else {
-			cg, err = cgroups.Load(cgroups.V1, cgroups.PidPath(pid))
-			if err != nil {
-				logrus.WithError(err).Errorf("loading cgroup for %d", pid)
-			}
+		cg, err := cgroups.Load(cgroups.V1, cgroups.PidPath(pid))
+		if err != nil {
+			logrus.WithError(err).Errorf("loading cgroup for %d", pid)
 		}
 		container.cgroup = cg
 	}
 	return container, nil
+}
+
+const optionsFilename = "options.json"
+
+// ReadOptions reads the option information from the path.
+// When the file does not exist, ReadOptions returns nil without an error.
+func ReadOptions(path string) (*options.Options, error) {
+	filePath := filepath.Join(path, optionsFilename)
+	if _, err := os.Stat(filePath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	data, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+	var opts options.Options
+	if err := json.Unmarshal(data, &opts); err != nil {
+		return nil, err
+	}
+	return &opts, nil
+}
+
+// WriteOptions writes the options information into the path
+func WriteOptions(path string, opts options.Options) error {
+	data, err := json.Marshal(opts)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(filepath.Join(path, optionsFilename), data, 0600)
 }
 
 // ReadRuntime reads the runtime information from the path
@@ -204,8 +228,7 @@ type Container struct {
 	// Bundle path
 	Bundle string
 
-	// cgroup is either cgroups.Cgroup or *cgroupsv2.Manager
-	cgroup          interface{}
+	cgroup          cgroups.Cgroup
 	process         process.Process
 	processes       map[string]process.Process
 	reservedProcess map[string]struct{}
@@ -243,14 +266,14 @@ func (c *Container) Pid() int {
 }
 
 // Cgroup of the container
-func (c *Container) Cgroup() interface{} {
+func (c *Container) Cgroup() cgroups.Cgroup {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.cgroup
 }
 
 // CgroupSet sets the cgroup to the container
-func (c *Container) CgroupSet(cg interface{}) {
+func (c *Container) CgroupSet(cg cgroups.Cgroup) {
 	c.mu.Lock()
 	c.cgroup = cg
 	c.mu.Unlock()
@@ -322,21 +345,9 @@ func (c *Container) Start(ctx context.Context, r *task.StartRequest) (process.Pr
 		return nil, err
 	}
 	if c.Cgroup() == nil && p.Pid() > 0 {
-		var cg interface{}
-		if cgroups.Mode() == cgroups.Unified {
-			g, err := cgroupsv2.PidGroupPath(p.Pid())
-			if err != nil {
-				logrus.WithError(err).Errorf("loading cgroup2 for %d", p.Pid())
-			}
-			cg, err = cgroupsv2.LoadManager("/sys/fs/cgroup", g)
-			if err != nil {
-				logrus.WithError(err).Errorf("loading cgroup2 for %d", p.Pid())
-			}
-		} else {
-			cg, err = cgroups.Load(cgroups.V1, cgroups.PidPath(p.Pid()))
-			if err != nil {
-				logrus.WithError(err).Errorf("loading cgroup for %d", p.Pid())
-			}
+		cg, err := cgroups.Load(cgroups.V1, cgroups.PidPath(p.Pid()))
+		if err != nil {
+			logrus.WithError(err).Errorf("loading cgroup for %d", p.Pid())
 		}
 		c.cgroup = cg
 	}

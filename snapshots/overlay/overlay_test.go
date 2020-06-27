@@ -34,49 +34,21 @@ import (
 	"github.com/containerd/containerd/snapshots/testsuite"
 )
 
-func newSnapshotterWithOpts(opts ...Opt) testsuite.SnapshotterFunc {
-	return func(ctx context.Context, root string) (snapshots.Snapshotter, func() error, error) {
-		snapshotter, err := NewSnapshotter(root, opts...)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return snapshotter, func() error { return snapshotter.Close() }, nil
+func newSnapshotter(ctx context.Context, root string) (snapshots.Snapshotter, func() error, error) {
+	snapshotter, err := NewSnapshotter(root)
+	if err != nil {
+		return nil, nil, err
 	}
+
+	return snapshotter, func() error { return snapshotter.Close() }, nil
 }
 
 func TestOverlay(t *testing.T) {
 	testutil.RequiresRoot(t)
-	optTestCases := map[string][]Opt{
-		"no opt": nil,
-		// default in init()
-		"AsynchronousRemove": {AsynchronousRemove},
-	}
-
-	for optsName, opts := range optTestCases {
-		t.Run(optsName, func(t *testing.T) {
-			newSnapshotter := newSnapshotterWithOpts(opts...)
-			testsuite.SnapshotterSuite(t, "Overlay", newSnapshotter)
-			t.Run("TestOverlayMounts", func(t *testing.T) {
-				testOverlayMounts(t, newSnapshotter)
-			})
-			t.Run("TestOverlayCommit", func(t *testing.T) {
-				testOverlayCommit(t, newSnapshotter)
-			})
-			t.Run("TestOverlayOverlayMount", func(t *testing.T) {
-				testOverlayOverlayMount(t, newSnapshotter)
-			})
-			t.Run("TestOverlayOverlayRead", func(t *testing.T) {
-				testOverlayOverlayRead(t, newSnapshotter)
-			})
-			t.Run("TestOverlayView", func(t *testing.T) {
-				testOverlayView(t, newSnapshotter)
-			})
-		})
-	}
+	testsuite.SnapshotterSuite(t, "Overlay", newSnapshotter)
 }
 
-func testOverlayMounts(t *testing.T, newSnapshotter testsuite.SnapshotterFunc) {
+func TestOverlayMounts(t *testing.T) {
 	ctx := context.TODO()
 	root, err := ioutil.TempDir("", "overlay")
 	if err != nil {
@@ -110,7 +82,7 @@ func testOverlayMounts(t *testing.T, newSnapshotter testsuite.SnapshotterFunc) {
 	}
 }
 
-func testOverlayCommit(t *testing.T, newSnapshotter testsuite.SnapshotterFunc) {
+func TestOverlayCommit(t *testing.T) {
 	ctx := context.TODO()
 	root, err := ioutil.TempDir("", "overlay")
 	if err != nil {
@@ -135,7 +107,7 @@ func testOverlayCommit(t *testing.T, newSnapshotter testsuite.SnapshotterFunc) {
 	}
 }
 
-func testOverlayOverlayMount(t *testing.T, newSnapshotter testsuite.SnapshotterFunc) {
+func TestOverlayOverlayMount(t *testing.T) {
 	ctx := context.TODO()
 	root, err := ioutil.TempDir("", "overlay")
 	if err != nil {
@@ -218,7 +190,7 @@ func getParents(ctx context.Context, sn snapshots.Snapshotter, root, key string)
 	return parents
 }
 
-func testOverlayOverlayRead(t *testing.T, newSnapshotter testsuite.SnapshotterFunc) {
+func TestOverlayOverlayRead(t *testing.T) {
 	testutil.RequiresRoot(t)
 	ctx := context.TODO()
 	root, err := ioutil.TempDir("", "overlay")
@@ -262,7 +234,7 @@ func testOverlayOverlayRead(t *testing.T, newSnapshotter testsuite.SnapshotterFu
 	}
 }
 
-func testOverlayView(t *testing.T, newSnapshotter testsuite.SnapshotterFunc) {
+func TestOverlayView(t *testing.T) {
 	ctx := context.TODO()
 	root, err := ioutil.TempDir("", "overlay")
 	if err != nil {

@@ -21,8 +21,8 @@ import (
 	"testing"
 
 	"github.com/containerd/containerd/reference"
-	"gotest.tools/v3/assert"
-	"gotest.tools/v3/assert/cmp"
+	"gotest.tools/assert"
+	"gotest.tools/assert/cmp"
 )
 
 func TestRepositoryScope(t *testing.T) {

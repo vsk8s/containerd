@@ -18,29 +18,27 @@
 
 package v1
 
-import (
-	v1 "github.com/containerd/cgroups/stats/v1"
-)
+import "github.com/containerd/cgroups"
 
 type (
 	// Metrics alias
-	Metrics = v1.Metrics
+	Metrics = cgroups.Metrics
 	// BlkIOEntry alias
-	BlkIOEntry = v1.BlkIOEntry
+	BlkIOEntry = cgroups.BlkIOEntry
 	// MemoryStat alias
-	MemoryStat = v1.MemoryStat
+	MemoryStat = cgroups.MemoryStat
 	// CPUStat alias
-	CPUStat = v1.CPUStat
+	CPUStat = cgroups.CPUStat
 	// CPUUsage alias
-	CPUUsage = v1.CPUUsage
+	CPUUsage = cgroups.CPUUsage
 	// BlkIOStat alias
-	BlkIOStat = v1.BlkIOStat
+	BlkIOStat = cgroups.BlkIOStat
 	// PidsStat alias
-	PidsStat = v1.PidsStat
+	PidsStat = cgroups.PidsStat
 	// RdmaStat alias
-	RdmaStat = v1.RdmaStat
+	RdmaStat = cgroups.RdmaStat
 	// RdmaEntry alias
-	RdmaEntry = v1.RdmaEntry
+	RdmaEntry = cgroups.RdmaEntry
 	// HugetlbStat alias
-	HugetlbStat = v1.HugetlbStat
+	HugetlbStat = cgroups.HugetlbStat
 )

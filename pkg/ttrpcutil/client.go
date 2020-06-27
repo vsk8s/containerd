@@ -21,7 +21,6 @@ import (
 	"time"
 
 	v1 "github.com/containerd/containerd/api/services/ttrpc/events/v1"
-	"github.com/containerd/containerd/pkg/dialer"
 	"github.com/containerd/ttrpc"
 	"github.com/pkg/errors"
 )
@@ -41,7 +40,7 @@ type Client struct {
 // NewClient returns a new containerd TTRPC client that is connected to the containerd instance provided by address
 func NewClient(address string, opts ...ttrpc.ClientOpts) (*Client, error) {
 	connector := func() (*ttrpc.Client, error) {
-		conn, err := dialer.Dialer(address, ttrpcDialTimeout)
+		conn, err := ttrpcDial(address, ttrpcDialTimeout)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to connect")
 		}
@@ -50,8 +49,14 @@ func NewClient(address string, opts ...ttrpc.ClientOpts) (*Client, error) {
 		return client, nil
 	}
 
+	client, err := connector()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Client{
 		connector: connector,
+		client:    client,
 	}, nil
 }
 
@@ -68,12 +73,6 @@ func (c *Client) Reconnect() error {
 		return errors.New("client is closed")
 	}
 
-	if c.client != nil {
-		if err := c.client.Close(); err != nil {
-			return err
-		}
-	}
-
 	client, err := c.connector()
 	if err != nil {
 		return err
@@ -84,26 +83,16 @@ func (c *Client) Reconnect() error {
 }
 
 // EventsService creates an EventsService client
-func (c *Client) EventsService() (v1.EventsService, error) {
-	client, err := c.Client()
-	if err != nil {
-		return nil, err
-	}
-	return v1.NewEventsClient(client), nil
+func (c *Client) EventsService() v1.EventsService {
+	return v1.NewEventsClient(c.Client())
 }
 
 // Client returns the underlying TTRPC client object
-func (c *Client) Client() (*ttrpc.Client, error) {
+func (c *Client) Client() *ttrpc.Client {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.client == nil {
-		client, err := c.connector()
-		if err != nil {
-			return nil, err
-		}
-		c.client = client
-	}
-	return c.client, nil
+
+	return c.client
 }
 
 // Close closes the clients TTRPC connection to containerd
@@ -112,8 +101,5 @@ func (c *Client) Close() error {
 	defer c.mu.Unlock()
 
 	c.closed = true
-	if c.client != nil {
-		return c.client.Close()
-	}
-	return nil
+	return c.client.Close()
 }

@@ -21,7 +21,6 @@ import (
 	"os"
 
 	"github.com/containerd/cgroups"
-	cgroupsv2 "github.com/containerd/cgroups/v2"
 	"github.com/containerd/containerd/log"
 	srvconfig "github.com/containerd/containerd/services/server/config"
 	"github.com/containerd/containerd/sys"
@@ -38,34 +37,19 @@ func apply(ctx context.Context, config *srvconfig.Config) error {
 		}
 	}
 	if config.Cgroup.Path != "" {
-		if cgroups.Mode() == cgroups.Unified {
-			cg, err := cgroupsv2.LoadManager("/sys/fs/cgroup", config.Cgroup.Path)
-			if err != nil {
-				if err != cgroupsv2.ErrCgroupDeleted {
-					return err
-				}
-				if cg, err = cgroupsv2.NewManager("/sys/fs/cgroup", config.Cgroup.Path, nil); err != nil {
-					return err
-				}
-			}
-			if err := cg.AddProc(uint64(os.Getpid())); err != nil {
+		cg, err := cgroups.Load(cgroups.V1, cgroups.StaticPath(config.Cgroup.Path))
+		if err != nil {
+			if err != cgroups.ErrCgroupDeleted {
 				return err
 			}
-		} else {
-			cg, err := cgroups.Load(cgroups.V1, cgroups.StaticPath(config.Cgroup.Path))
-			if err != nil {
-				if err != cgroups.ErrCgroupDeleted {
-					return err
-				}
-				if cg, err = cgroups.New(cgroups.V1, cgroups.StaticPath(config.Cgroup.Path), &specs.LinuxResources{}); err != nil {
-					return err
-				}
-			}
-			if err := cg.Add(cgroups.Process{
-				Pid: os.Getpid(),
-			}); err != nil {
+			if cg, err = cgroups.New(cgroups.V1, cgroups.StaticPath(config.Cgroup.Path), &specs.LinuxResources{}); err != nil {
 				return err
 			}
+		}
+		if err := cg.Add(cgroups.Process{
+			Pid: os.Getpid(),
+		}); err != nil {
+			return err
 		}
 	}
 	return nil

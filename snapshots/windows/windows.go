@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	winfs "github.com/Microsoft/go-winio/pkg/fs"
@@ -48,10 +47,6 @@ func init() {
 		},
 	})
 }
-
-const (
-	rootfsSizeLabel = "containerd.io/snapshot/io.microsoft.container.storage.rootfs.size-gb"
-)
 
 type snapshotter struct {
 	root string
@@ -130,20 +125,17 @@ func (s *snapshotter) Usage(ctx context.Context, key string) (snapshots.Usage, e
 	if err != nil {
 		return snapshots.Usage{}, err
 	}
-	id, info, usage, err := storage.GetInfo(ctx, key)
-	t.Rollback() // transaction no longer needed at this point.
+	defer t.Rollback()
 
+	_, info, usage, err := storage.GetInfo(ctx, key)
 	if err != nil {
 		return snapshots.Usage{}, err
 	}
 
 	if info.Kind == snapshots.KindActive {
-		path := s.getSnapshotDir(id)
-		du, err := fs.DiskUsage(ctx, path)
-		if err != nil {
-			return snapshots.Usage{}, err
+		du := fs.Usage{
+			Size: 0,
 		}
-
 		usage = snapshots.Usage(du)
 	}
 
@@ -181,30 +173,20 @@ func (s *snapshotter) Commit(ctx context.Context, name, key string, opts ...snap
 	if err != nil {
 		return err
 	}
+	defer t.Rollback()
 
-	defer func() {
-		if err != nil {
-			if rerr := t.Rollback(); rerr != nil {
-				log.G(ctx).WithError(rerr).Warn("failed to rollback transaction")
-			}
-		}
-	}()
-
-	// grab the existing id
-	id, _, _, err := storage.GetInfo(ctx, key)
-	if err != nil {
-		return err
-	}
-
-	usage, err := fs.DiskUsage(ctx, s.getSnapshotDir(id))
-	if err != nil {
-		return err
+	usage := fs.Usage{
+		Size: 0,
 	}
 
 	if _, err = storage.CommitActive(ctx, key, name, snapshots.Usage(usage), opts...); err != nil {
 		return errors.Wrap(err, "failed to commit snapshot")
 	}
-	return t.Commit()
+
+	if err := t.Commit(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Remove abandons the transaction identified by key. All resources
@@ -256,14 +238,14 @@ func (s *snapshotter) Remove(ctx context.Context, key string) error {
 }
 
 // Walk the committed snapshots.
-func (s *snapshotter) Walk(ctx context.Context, fn snapshots.WalkFunc, fs ...string) error {
+func (s *snapshotter) Walk(ctx context.Context, fn func(context.Context, snapshots.Info) error) error {
 	ctx, t, err := s.ms.TransactionContext(ctx, false)
 	if err != nil {
 		return err
 	}
 	defer t.Rollback()
 
-	return storage.WalkInfo(ctx, fn, fs...)
+	return storage.WalkInfo(ctx, fn)
 }
 
 // Close closes the snapshotter
@@ -337,26 +319,7 @@ func (s *snapshotter) createSnapshot(ctx context.Context, kind snapshots.Kind, k
 			return nil, errors.Wrap(err, "failed to create sandbox layer")
 		}
 
-		var snapshotInfo snapshots.Info
-		for _, o := range opts {
-			o(&snapshotInfo)
-		}
-
-		var sizeGB int
-		if sizeGBstr, ok := snapshotInfo.Labels[rootfsSizeLabel]; ok {
-			i32, err := strconv.ParseInt(sizeGBstr, 10, 32)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to parse annotation %q=%q", rootfsSizeLabel, sizeGBstr)
-			}
-			sizeGB = int(i32)
-		}
-
-		if sizeGB > 0 {
-			const gbToByte = 1024 * 1024 * 1024
-			if err := hcsshim.ExpandSandboxSize(s.info, newSnapshot.ID, uint64(gbToByte*sizeGB)); err != nil {
-				return nil, errors.Wrapf(err, "failed to expand scratch size to %d GB", sizeGB)
-			}
-		}
+		// TODO(darrenstahlmsft): Allow changing sandbox size
 	}
 
 	if err := t.Commit(); err != nil {

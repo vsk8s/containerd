@@ -20,7 +20,7 @@ import (
 	"context"
 	"testing"
 
-	"gotest.tools/v3/assert"
+	"gotest.tools/assert"
 )
 
 func TestLoggerContext(t *testing.T) {

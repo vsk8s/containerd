@@ -31,10 +31,10 @@ import (
 	"time"
 
 	"github.com/containerd/cgroups"
-	cgroupsv2 "github.com/containerd/cgroups/v2"
 	eventstypes "github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/api/types/task"
 	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/pkg/oom"
@@ -48,7 +48,9 @@ import (
 	runcC "github.com/containerd/go-runc"
 	"github.com/containerd/typeurl"
 	"github.com/gogo/protobuf/proto"
+	"github.com/gogo/protobuf/types"
 	ptypes "github.com/gogo/protobuf/types"
+	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -156,7 +158,7 @@ func readSpec() (*spec, error) {
 	return &s, nil
 }
 
-func (s *service) StartShim(ctx context.Context, id, containerdBinary, containerdAddress, containerdTTRPCAddress string) (_ string, retErr error) {
+func (s *service) StartShim(ctx context.Context, id, containerdBinary, containerdAddress, containerdTTRPCAddress string) (string, error) {
 	cmd, err := newCommand(ctx, id, containerdBinary, containerdAddress, containerdTTRPCAddress)
 	if err != nil {
 		return "", err
@@ -199,7 +201,7 @@ func (s *service) StartShim(ctx context.Context, id, containerdBinary, container
 		return "", err
 	}
 	defer func() {
-		if retErr != nil {
+		if err != nil {
 			cmd.Process.Kill()
 		}
 	}()
@@ -210,7 +212,7 @@ func (s *service) StartShim(ctx context.Context, id, containerdBinary, container
 	}
 	if data, err := ioutil.ReadAll(os.Stdin); err == nil {
 		if len(data) > 0 {
-			var any ptypes.Any
+			var any types.Any
 			if err := proto.Unmarshal(data, &any); err != nil {
 				return "", err
 			}
@@ -220,27 +222,14 @@ func (s *service) StartShim(ctx context.Context, id, containerdBinary, container
 			}
 			if opts, ok := v.(*options.Options); ok {
 				if opts.ShimCgroup != "" {
-					if cgroups.Mode() == cgroups.Unified {
-						if err := cgroupsv2.VerifyGroupPath(opts.ShimCgroup); err != nil {
-							return "", errors.Wrapf(err, "failed to verify cgroup path %q", opts.ShimCgroup)
-						}
-						cg, err := cgroupsv2.LoadManager("/sys/fs/cgroup", opts.ShimCgroup)
-						if err != nil {
-							return "", errors.Wrapf(err, "failed to load cgroup %s", opts.ShimCgroup)
-						}
-						if err := cg.AddProc(uint64(cmd.Process.Pid)); err != nil {
-							return "", errors.Wrapf(err, "failed to join cgroup %s", opts.ShimCgroup)
-						}
-					} else {
-						cg, err := cgroups.Load(cgroups.V1, cgroups.StaticPath(opts.ShimCgroup))
-						if err != nil {
-							return "", errors.Wrapf(err, "failed to load cgroup %s", opts.ShimCgroup)
-						}
-						if err := cg.Add(cgroups.Process{
-							Pid: cmd.Process.Pid,
-						}); err != nil {
-							return "", errors.Wrapf(err, "failed to join cgroup %s", opts.ShimCgroup)
-						}
+					cg, err := cgroups.Load(cgroups.V1, cgroups.StaticPath(opts.ShimCgroup))
+					if err != nil {
+						return "", errors.Wrapf(err, "failed to load cgroup %s", opts.ShimCgroup)
+					}
+					if err := cg.Add(cgroups.Process{
+						Pid: cmd.Process.Pid,
+					}); err != nil {
+						return "", errors.Wrapf(err, "failed to join cgroup %s", opts.ShimCgroup)
 					}
 				}
 			}
@@ -267,7 +256,16 @@ func (s *service) Cleanup(ctx context.Context) (*taskAPI.DeleteResponse, error) 
 	if err != nil {
 		return nil, err
 	}
-	r := process.NewRunc(process.RuncRoot, path, ns, runtime, "", false)
+	opts, err := runc.ReadOptions(path)
+	if err != nil {
+		return nil, err
+	}
+	root := process.RuncRoot
+	if opts != nil && opts.Root != "" {
+		root = opts.Root
+	}
+
+	r := process.NewRunc(root, path, ns, runtime, "", false)
 	if err := r.Delete(ctx, s.id, &runcC.DeleteOpts{
 		Force: true,
 	}); err != nil {
@@ -327,26 +325,10 @@ func (s *service) Start(ctx context.Context, r *taskAPI.StartRequest) (*taskAPI.
 		s.eventSendMu.Unlock()
 		return nil, errdefs.ToGRPC(err)
 	}
-
 	switch r.ExecID {
 	case "":
-		switch cg := container.Cgroup().(type) {
-		case cgroups.Cgroup:
-			if err := s.ep.Add(container.ID, cg); err != nil {
-				logrus.WithError(err).Error("add cg to OOM monitor")
-			}
-		case *cgroupsv2.Manager:
-			allControllers, err := cg.RootControllers()
-			if err != nil {
-				logrus.WithError(err).Error("failed to get root controllers")
-			} else {
-				if err := cg.ToggleControllers(allControllers, cgroupsv2.Enable); err != nil {
-					logrus.WithError(err).Errorf("failed to enable controllers (%v)", allControllers)
-				}
-			}
-
-			// OOM monitor is not implemented yet
-			logrus.WithError(errdefs.ErrNotImplemented).Warn("add cg to OOM monitor")
+		if err := s.ep.Add(container.ID, container.Cgroup()); err != nil {
+			logrus.WithError(err).Error("add cg to OOM monitor")
 		}
 
 		s.send(&eventstypes.TaskStart{
@@ -637,28 +619,15 @@ func (s *service) Stats(ctx context.Context, r *taskAPI.StatsRequest) (*taskAPI.
 	if err != nil {
 		return nil, err
 	}
-	cgx := container.Cgroup()
-	if cgx == nil {
+	cg := container.Cgroup()
+	if cg == nil {
 		return nil, errdefs.ToGRPCf(errdefs.ErrNotFound, "cgroup does not exist")
 	}
-	var statsx interface{}
-	switch cg := cgx.(type) {
-	case cgroups.Cgroup:
-		stats, err := cg.Stat(cgroups.IgnoreNotExist)
-		if err != nil {
-			return nil, err
-		}
-		statsx = stats
-	case *cgroupsv2.Manager:
-		stats, err := cg.Stat()
-		if err != nil {
-			return nil, err
-		}
-		statsx = stats
-	default:
-		return nil, errdefs.ToGRPCf(errdefs.ErrNotImplemented, "unsupported cgroup type %T", cg)
+	stats, err := cg.Stat(cgroups.IgnoreNotExist)
+	if err != nil {
+		return nil, err
 	}
-	data, err := typeurl.MarshalAny(statsx)
+	data, err := typeurl.MarshalAny(stats)
 	if err != nil {
 		return nil, err
 	}
@@ -698,8 +667,13 @@ func (s *service) checkProcesses(e runcC.Exit) {
 			}
 
 			if ip, ok := p.(*process.Init); ok {
+				shouldKillAll, err := shouldKillAllOnExit(container.Bundle)
+				if err != nil {
+					log.G(s.context).WithError(err).Error("failed to check shouldKillAll")
+				}
+
 				// Ensure all children are killed
-				if runc.ShouldKillAllOnExit(s.context, container.Bundle) {
+				if shouldKillAll {
 					if err := ip.KillAll(s.context); err != nil {
 						logrus.WithError(err).WithField("id", ip.ID()).
 							Error("failed to kill init's children")
@@ -719,6 +693,25 @@ func (s *service) checkProcesses(e runcC.Exit) {
 		}
 		return
 	}
+}
+
+func shouldKillAllOnExit(bundlePath string) (bool, error) {
+	var bundleSpec specs.Spec
+	bundleConfigContents, err := ioutil.ReadFile(filepath.Join(bundlePath, "config.json"))
+	if err != nil {
+		return false, err
+	}
+	json.Unmarshal(bundleConfigContents, &bundleSpec)
+
+	if bundleSpec.Linux != nil {
+		for _, ns := range bundleSpec.Linux.Namespaces {
+			if ns.Type == specs.PIDNamespace && ns.Path == "" {
+				return false, nil
+			}
+		}
+	}
+
+	return true, nil
 }
 
 func (s *service) getContainerPids(ctx context.Context, id string) ([]uint32, error) {

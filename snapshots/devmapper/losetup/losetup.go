@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"golang.org/x/sys/unix"
 )
 
 // FindAssociatedLoopDevices returns a list of loop devices attached to a given image
@@ -66,7 +65,7 @@ func RemoveLoopDevicesAssociatedWithImage(imagePath string) error {
 	}
 
 	for _, loopDevice := range loopDevices {
-		if err = DetachLoopDevice(loopDevice); err != nil && err != unix.ENOENT {
+		if err = DetachLoopDevice(loopDevice); err != nil {
 			return err
 		}
 	}
@@ -76,15 +75,9 @@ func RemoveLoopDevicesAssociatedWithImage(imagePath string) error {
 
 // losetup is a wrapper around losetup command line tool
 func losetup(args ...string) (string, error) {
-	cmd := exec.Command("losetup", args...)
-	cmd.Env = append(cmd.Env, "LANG=C")
-	data, err := cmd.CombinedOutput()
+	data, err := exec.Command("losetup", args...).CombinedOutput()
 	output := string(data)
 	if err != nil {
-		if strings.Contains(output, "No such file or directory") || strings.Contains(output, "No such device") {
-			return "", unix.ENOENT
-		}
-
 		return "", errors.Wrapf(err, "losetup %s\nerror: %s\n", strings.Join(args, " "), output)
 	}
 

@@ -288,7 +288,7 @@ func setLevel(context *cli.Context, config *srvconfig.Config) error {
 		l = config.Debug.Level
 	}
 	if l != "" {
-		lvl, err := logrus.ParseLevel(l)
+		lvl, err := log.ParseLevel(l)
 		if err != nil {
 			return err
 		}

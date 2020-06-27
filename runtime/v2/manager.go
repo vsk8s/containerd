@@ -29,7 +29,6 @@ import (
 	"github.com/containerd/containerd/metadata"
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/containerd/pkg/timeout"
 	"github.com/containerd/containerd/platforms"
 	"github.com/containerd/containerd/plugin"
 	"github.com/containerd/containerd/runtime"
@@ -155,13 +154,8 @@ func (m *TaskManager) Create(ctx context.Context, id string, opts runtime.Create
 	}
 	defer func() {
 		if err != nil {
-			dctx, cancel := timeout.WithContext(context.Background(), cleanupTimeout)
-			defer cancel()
-			_, errShim := shim.Delete(dctx)
-			if errShim != nil {
-				shim.Shutdown(ctx)
-				shim.Close()
-			}
+			shim.Shutdown(ctx)
+			shim.Close()
 		}
 	}()
 	t, err := shim.Create(ctx, opts)

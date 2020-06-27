@@ -23,7 +23,7 @@ import (
 	"sort"
 	"testing"
 
-	"gotest.tools/v3/assert"
+	"gotest.tools/assert"
 
 	"github.com/containerd/containerd/plugin"
 )

@@ -317,7 +317,7 @@ func TestBreakouts(t *testing.T) {
 			if err == nil {
 				return errors.New("files are the same, expected diff")
 			}
-			if !errors.Is(err, errFileDiff) {
+			if errors.Cause(err) != errFileDiff {
 				return err
 			}
 			return nil
@@ -932,7 +932,7 @@ func makeWriterToTarTest(wt tartest.WriterToTar, a fstest.Applier, validate func
 		if _, err := Apply(context.Background(), td, tr); err != nil {
 			if applyErr == nil {
 				t.Fatalf("Failed to apply tar: %v", err)
-			} else if !errors.Is(err, applyErr) {
+			} else if errors.Cause(err) != applyErr {
 				t.Fatalf("Unexpected apply error: %v, expected %v", err, applyErr)
 			}
 			return

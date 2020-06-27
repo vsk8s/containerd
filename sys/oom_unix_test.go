@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"gotest.tools/v3/assert"
-	is "gotest.tools/v3/assert/cmp"
+	"gotest.tools/assert"
+	is "gotest.tools/assert/cmp"
 )
 
 func TestSetPositiveOomScoreAdjustment(t *testing.T) {
@@ -71,8 +71,6 @@ func adjustOom(adjustment int) (int, error) {
 	if err := cmd.Start(); err != nil {
 		return 0, err
 	}
-
-	defer cmd.Process.Kill()
 
 	pid, err := waitForPid(cmd.Process)
 	if err != nil {

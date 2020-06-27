@@ -23,6 +23,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	introspection "github.com/containerd/containerd/api/services/introspection/v1"
 	"github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/cmd/ctr/commands"
 	"github.com/containerd/containerd/platforms"
@@ -66,7 +67,9 @@ var listCommand = cli.Command{
 		}
 		defer cancel()
 		ps := client.IntrospectionService()
-		response, err := ps.Plugins(ctx, context.Args())
+		response, err := ps.Plugins(ctx, &introspection.PluginsRequest{
+			Filters: context.Args(),
+		})
 		if err != nil {
 			return err
 		}

@@ -22,11 +22,9 @@ import (
 	"context"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
-	"golang.org/x/sys/unix"
 
 	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/snapshots/devmapper/dmsetup"
@@ -84,7 +82,7 @@ func (p *PoolDevice) ensureDeviceStates(ctx context.Context) error {
 	var faultyDevices []*DeviceInfo
 	var activatedDevices []*DeviceInfo
 
-	if err := p.WalkDevices(ctx, func(info *DeviceInfo) error {
+	if err := p.metadata.WalkDevices(ctx, func(info *DeviceInfo) error {
 		switch info.State {
 		case Suspended, Resumed, Deactivated, Removed, Faulty:
 		case Activated:
@@ -347,16 +345,6 @@ func (p *PoolDevice) SuspendDevice(ctx context.Context, deviceName string) error
 	return nil
 }
 
-func (p *PoolDevice) ResumeDevice(ctx context.Context, deviceName string) error {
-	if err := p.transition(ctx, deviceName, Resuming, Resumed, func() error {
-		return dmsetup.ResumeDevice(deviceName)
-	}); err != nil {
-		return errors.Wrapf(err, "failed to resume device %q", deviceName)
-	}
-
-	return nil
-}
-
 // DeactivateDevice deactivates thin device
 func (p *PoolDevice) DeactivateDevice(ctx context.Context, deviceName string, deferred, withForce bool) error {
 	if !p.IsLoaded(deviceName) {
@@ -372,30 +360,7 @@ func (p *PoolDevice) DeactivateDevice(ctx context.Context, deviceName string, de
 	}
 
 	if err := p.transition(ctx, deviceName, Deactivating, Deactivated, func() error {
-		var (
-			maxRetries = 100
-			retryDelay = 100 * time.Millisecond
-			retryErr   error
-		)
-
-		for attempt := 1; attempt <= maxRetries; attempt++ {
-			retryErr = dmsetup.RemoveDevice(deviceName, opts...)
-			if retryErr == nil {
-				return nil
-			} else if retryErr != unix.EBUSY {
-				return retryErr
-			}
-
-			// Don't spam logs
-			if attempt%10 == 0 {
-				log.G(ctx).WithError(retryErr).Warnf("failed to deactivate device, retrying... (%d of %d)", attempt, maxRetries)
-			}
-
-			// Devmapper device is busy, give it a bit of time and retry removal
-			time.Sleep(retryDelay)
-		}
-
-		return retryErr
+		return dmsetup.RemoveDevice(deviceName, opts...)
 	}); err != nil {
 		return errors.Wrapf(err, "failed to deactivate device %q", deviceName)
 	}
@@ -502,18 +467,6 @@ func (p *PoolDevice) RemovePool(ctx context.Context) error {
 	}
 
 	return result.ErrorOrNil()
-}
-
-// MarkDeviceState changes the device's state in metastore
-func (p *PoolDevice) MarkDeviceState(ctx context.Context, name string, state DeviceState) error {
-	return p.metadata.ChangeDeviceState(ctx, name, state)
-}
-
-// WalkDevices iterates all devices in pool metadata
-func (p *PoolDevice) WalkDevices(ctx context.Context, cb func(info *DeviceInfo) error) error {
-	return p.metadata.WalkDevices(ctx, func(info *DeviceInfo) error {
-		return cb(info)
-	})
 }
 
 // Close closes pool device (thin-pool will not be removed)

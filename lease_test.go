@@ -24,6 +24,7 @@ import (
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/leases"
 	"github.com/opencontainers/image-spec/identity"
+	"github.com/pkg/errors"
 )
 
 func TestLeaseResources(t *testing.T) {
@@ -107,7 +108,7 @@ func TestLeaseResources(t *testing.T) {
 	}
 
 	// config should be removed but the snapshotter should exist
-	if _, err := cs.Info(ctx, cfgDesc.Digest); !errdefs.IsNotFound(err) {
+	if _, err := cs.Info(ctx, cfgDesc.Digest); errors.Cause(err) != errdefs.ErrNotFound {
 		t.Fatalf("expected error(%v), but got(%v)", errdefs.ErrNotFound, err)
 	}
 
@@ -134,7 +135,7 @@ func TestLeaseResources(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := sn.Stat(ctx, chainID.String()); !errdefs.IsNotFound(err) {
+	if _, err := sn.Stat(ctx, chainID.String()); errors.Cause(err) != errdefs.ErrNotFound {
 		t.Fatalf("expected error(%v), but got(%v)", errdefs.ErrNotFound, err)
 	}
 }
