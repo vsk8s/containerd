@@ -33,13 +33,13 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
-	"k8s.io/kubernetes/pkg/util/bandwidth"
 
 	"github.com/containerd/cri/pkg/annotations"
 	criconfig "github.com/containerd/cri/pkg/config"
 	customopts "github.com/containerd/cri/pkg/containerd/opts"
 	ctrdutil "github.com/containerd/cri/pkg/containerd/util"
 	"github.com/containerd/cri/pkg/netns"
+	"github.com/containerd/cri/pkg/server/bandwidth"
 	sandboxstore "github.com/containerd/cri/pkg/store/sandbox"
 	"github.com/containerd/cri/pkg/util"
 	selinux "github.com/opencontainers/selinux/go-selinux"
@@ -412,9 +412,6 @@ func toCNIPortMappings(criPortMappings []*runtime.PortMapping) []cni.PortMapping
 	var portMappings []cni.PortMapping
 	for _, mapping := range criPortMappings {
 		if mapping.HostPort <= 0 {
-			continue
-		}
-		if mapping.Protocol != runtime.Protocol_TCP && mapping.Protocol != runtime.Protocol_UDP {
 			continue
 		}
 		portMappings = append(portMappings, cni.PortMapping{

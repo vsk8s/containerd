@@ -508,10 +508,10 @@ func getLogDirPath(runtimeVersion, id string) string {
 
 func getRuntimeVersion() string {
 	switch rt := os.Getenv("TEST_RUNTIME"); rt {
-	case plugin.RuntimeRuncV1, plugin.RuntimeRuncV2:
-		return "v2"
-	default:
+	case plugin.RuntimeLinuxV1:
 		return "v1"
+	default:
+		return "v2"
 	}
 }
 
@@ -723,11 +723,15 @@ func (f *directIO) Cancel() {
 // Close closes all open fds
 func (f *directIO) Close() error {
 	err := f.Stdin.Close()
-	if err2 := f.Stdout.Close(); err == nil {
-		err = err2
+	if f.Stdout != nil {
+		if err2 := f.Stdout.Close(); err == nil {
+			err = err2
+		}
 	}
-	if err2 := f.Stderr.Close(); err == nil {
-		err = err2
+	if f.Stderr != nil {
+		if err2 := f.Stderr.Close(); err == nil {
+			err = err2
+		}
 	}
 	return err
 }

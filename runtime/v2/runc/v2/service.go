@@ -38,12 +38,15 @@ import (
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/pkg/oom"
+	oomv1 "github.com/containerd/containerd/pkg/oom/v1"
+	oomv2 "github.com/containerd/containerd/pkg/oom/v2"
 	"github.com/containerd/containerd/pkg/process"
 	"github.com/containerd/containerd/pkg/stdio"
 	"github.com/containerd/containerd/runtime/v2/runc"
 	"github.com/containerd/containerd/runtime/v2/runc/options"
 	"github.com/containerd/containerd/runtime/v2/shim"
 	taskAPI "github.com/containerd/containerd/runtime/v2/task"
+	"github.com/containerd/containerd/sys"
 	"github.com/containerd/containerd/sys/reaper"
 	runcC "github.com/containerd/go-runc"
 	"github.com/containerd/typeurl"
@@ -73,7 +76,15 @@ type spec struct {
 
 // New returns a new shim service that can be used via GRPC
 func New(ctx context.Context, id string, publisher shim.Publisher, shutdown func()) (shim.Shim, error) {
-	ep, err := oom.New(publisher)
+	var (
+		ep  oom.Watcher
+		err error
+	)
+	if cgroups.Mode() == cgroups.Unified {
+		ep, err = oomv2.New(publisher)
+	} else {
+		ep, err = oomv1.New(publisher)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +117,7 @@ type service struct {
 	events   chan interface{}
 	platform stdio.Platform
 	ec       chan runcC.Exit
-	ep       *oom.Epoller
+	ep       oom.Watcher
 
 	// id only used in cleanup case
 	id string
@@ -267,7 +278,16 @@ func (s *service) Cleanup(ctx context.Context) (*taskAPI.DeleteResponse, error) 
 	if err != nil {
 		return nil, err
 	}
-	r := process.NewRunc(process.RuncRoot, path, ns, runtime, "", false)
+	opts, err := runc.ReadOptions(path)
+	if err != nil {
+		return nil, err
+	}
+	root := process.RuncRoot
+	if opts != nil && opts.Root != "" {
+		root = opts.Root
+	}
+
+	r := process.NewRunc(root, path, ns, runtime, "", false)
 	if err := r.Delete(ctx, s.id, &runcC.DeleteOpts{
 		Force: true,
 	}); err != nil {
@@ -341,12 +361,16 @@ func (s *service) Start(ctx context.Context, r *taskAPI.StartRequest) (*taskAPI.
 				logrus.WithError(err).Error("failed to get root controllers")
 			} else {
 				if err := cg.ToggleControllers(allControllers, cgroupsv2.Enable); err != nil {
-					logrus.WithError(err).Errorf("failed to enable controllers (%v)", allControllers)
+					if sys.RunningInUserNS() {
+						logrus.WithError(err).Debugf("failed to enable controllers (%v)", allControllers)
+					} else {
+						logrus.WithError(err).Errorf("failed to enable controllers (%v)", allControllers)
+					}
 				}
 			}
-
-			// OOM monitor is not implemented yet
-			logrus.WithError(errdefs.ErrNotImplemented).Warn("add cg to OOM monitor")
+			if err := s.ep.Add(container.ID, cg); err != nil {
+				logrus.WithError(err).Error("add cg to OOM monitor")
+			}
 		}
 
 		s.send(&eventstypes.TaskStart{

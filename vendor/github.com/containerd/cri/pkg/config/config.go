@@ -52,6 +52,8 @@ type Runtime struct {
 	// PrivilegedWithoutHostDevices overloads the default behaviour for adding host devices to the
 	// runtime spec when the container is privileged. Defaults to false.
 	PrivilegedWithoutHostDevices bool `toml:"privileged_without_host_devices" json:"privileged_without_host_devices"`
+	// BaseRuntimeSpec is a json file with OCI spec to use as base spec that all container's will be created from.
+	BaseRuntimeSpec string `toml:"base_runtime_spec" json:"baseRuntimeSpec"`
 }
 
 // ContainerdConfig contains toml config related to containerd
@@ -147,6 +149,8 @@ type Registry struct {
 	// be a valid url with host specified.
 	// DEPRECATED: Use Configs instead. Remove in containerd 1.4.
 	Auths map[string]AuthConfig `toml:"auths" json:"auths"`
+	// Headers adds additional HTTP headers that get sent to all registries
+	Headers map[string][]string `toml:"headers" json:"headers"`
 }
 
 // RegistryConfig contains configuration used to communicate with the registry.
@@ -228,6 +232,14 @@ type PluginConfig struct {
 	// UnsetSeccompProfile is the profile containerd/cri will use If the provided seccomp profile is
 	// unset (`""`) for a container (default is `unconfined`)
 	UnsetSeccompProfile string `toml:"unset_seccomp_profile" json:"unsetSeccompProfile"`
+	// TolerateMissingHugetlbController if set to false will error out on create/update
+	// container requests with huge page limits if the cgroup controller for hugepages is not present.
+	// This helps with supporting Kubernetes <=1.18 out of the box. (default is `true`)
+	TolerateMissingHugetlbController bool `toml:"tolerate_missing_hugetlb_controller" json:"tolerateMissingHugetlbController"`
+	// IgnoreImageDefinedVolumes ignores volumes defined by the image. Useful for better resource
+	// isolation, security and early detection of issues in the mount configuration when using
+	// ReadOnlyRootFilesystem since containers won't silently mount a temporary volume.
+	IgnoreImageDefinedVolumes bool `toml:"ignore_image_defined_volumes" json:"ignoreImageDefinedVolumes"`
 }
 
 // X509KeyPairStreaming contains the x509 configuration for streaming

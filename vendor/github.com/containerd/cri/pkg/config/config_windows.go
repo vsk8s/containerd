@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 
 	"github.com/containerd/containerd"
-	"k8s.io/kubernetes/pkg/kubelet/server/streaming"
+	"github.com/containerd/cri/pkg/streaming"
 )
 
 // DefaultConfig returns default configurations of cri plugin.
@@ -64,7 +64,8 @@ func DefaultConfig() PluginConfig {
 				},
 			},
 		},
-		MaxConcurrentDownloads: 3,
+		MaxConcurrentDownloads:    3,
+		IgnoreImageDefinedVolumes: false,
 		// TODO(windows): Add platform specific config, so that most common defaults can be shared.
 	}
 }

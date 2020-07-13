@@ -98,7 +98,8 @@ func (c *criService) PullImage(ctx context.Context, r *runtime.PullImageRequest)
 	}
 	var (
 		resolver = docker.NewResolver(docker.ResolverOptions{
-			Hosts: c.registryHosts(r.GetAuth()),
+			Headers: c.config.Registry.Headers,
+			Hosts:   c.registryHosts(r.GetAuth()),
 		})
 		isSchema1    bool
 		imageHandler containerdimages.HandlerFunc = func(_ context.Context,
@@ -283,7 +284,7 @@ func (c *criService) getTLSConfig(registryTLSConfig criconfig.TLSConfig) (*tls.C
 		if len(cert.Certificate) != 0 {
 			tlsConfig.Certificates = []tls.Certificate{cert}
 		}
-		tlsConfig.BuildNameToCertificate()
+		tlsConfig.BuildNameToCertificate() // nolint:staticcheck
 	}
 
 	if registryTLSConfig.CAFile != "" {
