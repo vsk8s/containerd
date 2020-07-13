@@ -150,19 +150,18 @@ Files: vendor/github.com/containerd/cri/pkg/config/config.go
 Copyright: 2017 The Kubernetes Authors.
 License: Apache-2.0
 
+Files: vendor/github.com/go-logr/logr/*
+Copyright: 2019 The logr Authors
+License: Apache-2.0
+
 Files: vendor/k8s.io/*
 Copyright: 2014-2019 The Kubernetes Authors.
 License: Apache-2.0
 
-Files: vendor/k8s.io/klog/klog_file.go
-       vendor/k8s.io/klog/klog.go
+Files: vendor/k8s.io/klog/v2/klog_file.go
+       vendor/k8s.io/klog/v2/klog.go
 Copyright: 2013 Google Inc.
 License: Apache-2.0
-
-Files: vendor/k8s.io/kubernetes/third_party/protobuf/google/protobuf/compiler/plugin.proto
-       vendor/k8s.io/kubernetes/third_party/protobuf/google/protobuf/descriptor.proto
-Copyright: 2008 Google Inc.
-License: Go
 
 License: Apache-2.0
  Licensed under the Apache License, Version 2.0 (the "License");
