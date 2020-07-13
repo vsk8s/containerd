@@ -32,6 +32,7 @@ Files-Excluded:
   vendor/github.com/emicklei/go-restful
   vendor/github.com/fsnotify/fsnotify
   vendor/github.com/fullsailor/pkcs7
+  ~~vendor/github.com/go-logr/logr
   vendor/github.com/godbus/dbus
   vendor/github.com/gogo/googleapis
   vendor/github.com/gogo/protobuf
@@ -64,6 +65,7 @@ Files-Excluded:
   vendor/github.com/prometheus/procfs
   vendor/github.com/russross/blackfriday
   vendor/github.com/seccomp/libseccomp-golang
+  vendor/github.com/shurcooL/sanitized_anchor_name
   vendor/github.com/sirupsen/logrus
   vendor/github.com/syndtr/gocapability
   vendor/github.com/tchap/go-patricia
@@ -89,7 +91,6 @@ Files-Excluded:
   ~~vendor/k8s.io/client-go
   ~~vendor/k8s.io/cri-api
   ~~vendor/k8s.io/klog
-  ~~vendor/k8s.io/kubernetes
   ~~vendor/k8s.io/utils
   vendor/sigs.k8s.io/yaml
   vendor/sigs.k8s.io/structured-merge-diff
