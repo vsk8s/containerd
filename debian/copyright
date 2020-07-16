@@ -32,7 +32,7 @@ Files-Excluded:
   vendor/github.com/emicklei/go-restful
   vendor/github.com/fsnotify/fsnotify
   vendor/github.com/fullsailor/pkcs7
-  ~~vendor/github.com/go-logr/logr
+  vendor/github.com/go-logr/logr
   vendor/github.com/godbus/dbus
   vendor/github.com/gogo/googleapis
   vendor/github.com/gogo/protobuf
