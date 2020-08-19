@@ -19,6 +19,7 @@
 package config
 
 import (
+	"github.com/BurntSushi/toml"
 	"github.com/containerd/containerd"
 	"github.com/containerd/cri/pkg/streaming"
 )
@@ -38,16 +39,18 @@ func DefaultConfig() PluginConfig {
 			NoPivot:            false,
 			Runtimes: map[string]Runtime{
 				"runc": {
-					Type: "io.containerd.runc.v2",
+					Type:    "io.containerd.runc.v2",
+					Options: new(toml.Primitive),
 				},
 			},
 		},
-		DisableTCPService:   true,
-		StreamServerAddress: "127.0.0.1",
-		StreamServerPort:    "0",
-		StreamIdleTimeout:   streaming.DefaultConfig.StreamIdleTimeout.String(), // 4 hour
-		EnableSelinux:       false,
-		EnableTLSStreaming:  false,
+		DisableTCPService:    true,
+		StreamServerAddress:  "127.0.0.1",
+		StreamServerPort:     "0",
+		StreamIdleTimeout:    streaming.DefaultConfig.StreamIdleTimeout.String(), // 4 hour
+		EnableSelinux:        false,
+		SelinuxCategoryRange: 1024,
+		EnableTLSStreaming:   false,
 		X509KeyPairStreaming: X509KeyPairStreaming{
 			TLSKeyFile:  "",
 			TLSCertFile: "",
@@ -66,6 +69,7 @@ func DefaultConfig() PluginConfig {
 		MaxConcurrentDownloads:           3,
 		DisableProcMount:                 false,
 		TolerateMissingHugetlbController: true,
+		DisableHugetlbController:         true,
 		IgnoreImageDefinedVolumes:        false,
 	}
 }

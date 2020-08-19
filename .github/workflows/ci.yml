@@ -26,7 +26,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v1
         with:
-          go-version: '1.13.12'
+          go-version: '1.13.15'
 
       - name: Set env
         shell: bash
@@ -66,7 +66,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v1
         with:
-          go-version: '1.13.12'
+          go-version: '1.13.15'
 
       - name: Set env
         shell: bash
@@ -81,7 +81,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           path: src/github.com/containerd/containerd
-          fetch-depth: 25
+          fetch-depth: 100
 
       - name: Checkout project repo
         uses: actions/checkout@v2
@@ -114,7 +114,7 @@ jobs:
           if [ -z "${GITHUB_COMMIT_URL}" ]; then
           DCO_RANGE=$(jq -r '.after + "..HEAD"' ${GITHUB_EVENT_PATH})
           else
-          DCO_RANGE=$(curl ${GITHUB_COMMIT_URL} | jq -r '.[0].parents[0].sha +".."+ .[-1].sha')
+          DCO_RANGE=$(curl ${GITHUB_COMMIT_URL} | jq -r '.[0].parents[0].sha + "..HEAD"')
           fi
           ../project/script/validate/dco
 
@@ -138,7 +138,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v1
         with:
-          go-version: '1.13.12'
+          go-version: '1.13.15'
 
       - name: Set env
         shell: bash
@@ -185,7 +185,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v1
         with:
-          go-version: '1.13.12'
+          go-version: '1.13.15'
 
       - name: Set env
         shell: bash
@@ -222,7 +222,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v1
         with:
-          go-version: '1.13.12'
+          go-version: '1.13.15'
 
       - name: Set env
         shell: bash
@@ -234,12 +234,6 @@ jobs:
         uses: actions/checkout@v2
         with:
           path: src/github.com/containerd/containerd
-
-      - name: Install Linux dependencies
-        if: startsWith(matrix.os, 'ubuntu')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y btrfs-tools libseccomp-dev
 
       - name: Make
         run: |
@@ -256,15 +250,11 @@ jobs:
     timeout-minutes: 30
     needs: [project, linters, protos, man]
 
-    strategy:
-      matrix:
-        runtime: [io.containerd.runc.v1]
-
     steps:
       - name: Install Go
         uses: actions/setup-go@v1
         with:
-          go-version: '1.13.12'
+          go-version: '1.13.15'
 
       - name: Set env
         shell: bash
@@ -303,7 +293,6 @@ jobs:
       - name: Integration 1
         shell: bash
         run: |
-          cp src/github.com/Microsoft/hcsshim/test/functional/manifest/rsrc_amd64.syso src/github.com/containerd/containerd/
           cd src/github.com/containerd/containerd
           export CGO_ENABLED=1
           mingw32-make.exe integration
@@ -324,17 +313,19 @@ jobs:
 
     strategy:
       matrix:
-        runtime: [io.containerd.runc.v1, io.containerd.runc.v2]
+        runtime: [io.containerd.runtime.v1.linux, io.containerd.runc.v1, io.containerd.runc.v2]
         runc: [runc, crun]
         exclude:
           - runtime: io.containerd.runc.v1
+            runc: crun
+          - runtime: io.containerd.runtime.v1.linux
             runc: crun
 
     steps:
       - name: Install Go
         uses: actions/setup-go@v1
         with:
-          go-version: '1.13.12'
+          go-version: '1.13.15'
 
       - name: Setup gosu
         shell: bash
@@ -415,27 +406,33 @@ jobs:
         env:
           TEST_RUNTIME: ${{ matrix.runtime }}
         run: |
-          sudo mkdir -p /etc/containerd
-          sudo bash -c "cat > /etc/containerd/config.toml <<EOF
+          BDIR="$(mktemp -d -p $PWD)"
+          mkdir -p ${BDIR}/{root,state}
+          cat > ${BDIR}/config.toml <<EOF
             [plugins.cri.containerd.default_runtime]
               runtime_type = \"${TEST_RUNTIME}\"
-          EOF"
-          sudo PATH=$PATH containerd -log-level debug &> /tmp/containerd-cri.log &
-          sudo ctr version
-          sudo PATH=$PATH GOPATH=$GOPATH critest --runtime-endpoint=unix:///var/run/containerd/containerd.sock --parallel=8
+          EOF
+          ls /etc/cni/net.d
+          sudo PATH=$PATH BDIR=$BDIR /usr/local/bin/containerd -a ${BDIR}/c.sock -root ${BDIR}/root -state ${BDIR}/state -log-level debug &> ${BDIR}/containerd-cri.log &
+          sudo PATH=$PATH BDIR=$BDIR /usr/local/bin/ctr -a ${BDIR}/c.sock version
+          sudo PATH=$PATH BDIR=$BDIR GOPATH=$GOPATH critest --runtime-endpoint=unix:///${BDIR}/c.sock --parallel=8
           TEST_RC=$?
-          test $TEST_RC -ne 0 && cat /tmp/containerd-cri.log
+          test $TEST_RC -ne 0 && cat ${BDIR}/containerd-cri.log
           sudo pkill containerd
-          sudo rm -rf /etc/containerd
+          sudo BDIR=$BDIR rm -rf ${BDIR}
           test $TEST_RC -eq 0 || /bin/false
 
   cgroup2:
-    name: CGroups v2 Integration Test
+    name: CGroupsV2 and SELinux Integration
     # nested virtualization is only available on macOS hosts
     runs-on: macos-10.15
     timeout-minutes: 40
     needs: [project, linters, protos, man]
-
+    strategy:
+      matrix:
+        # Currently crun is disabled to decrease CI flakiness.
+        # We can enable crun again when we get a better CI infra.
+        runc: [runc]
     steps:
       - name: Checkout containerd
         uses: actions/checkout@v2
@@ -444,4 +441,17 @@ jobs:
         run: vagrant up
 
       - name: Integration
-        run: vagrant ssh default -- sudo -i /integration.sh
+        env:
+          RUNC_FLAVOR: ${{ matrix.runc }}
+          # SELinux: replace Permissive with Enforcing after https://github.com/containers/container-selinux/pull/98
+          # is merged and the package becomes generally available.
+          SELINUX: Permissive
+        run: vagrant up --provision-with=selinux,install-runc,test-integration
+
+      - name: CRI test
+        env:
+          RUNC_FLAVOR: ${{ matrix.runc }}
+          # SELinux: replace Permissive with Enforcing after https://github.com/containers/container-selinux/pull/98
+          # is merged and the package becomes generally available.
+          SELINUX: Permissive
+        run: vagrant up --provision-with=selinux,install-runc,test-cri

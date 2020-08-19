@@ -80,6 +80,11 @@ type ContainerdConfig struct {
 	// related information) to snapshotters. These annotations are required by
 	// stargz snapshotter (https://github.com/containerd/stargz-snapshotter).
 	DisableSnapshotAnnotations bool `toml:"disable_snapshot_annotations" json:"disableSnapshotAnnotations"`
+
+	// DiscardUnpackedLayers is a boolean flag to specify whether to allow GC to
+	// remove layers from the content store after successfully unpacking these
+	// layers to the snapshotter.
+	DiscardUnpackedLayers bool `toml:"discard_unpacked_layers" json:"discardUnpackedLayers"`
 }
 
 // CniConfig contains toml config related to cni
@@ -198,6 +203,9 @@ type PluginConfig struct {
 	StreamIdleTimeout string `toml:"stream_idle_timeout" json:"streamIdleTimeout"`
 	// EnableSelinux indicates to enable the selinux support.
 	EnableSelinux bool `toml:"enable_selinux" json:"enableSelinux"`
+	// SelinuxCategoryRange allows the upper bound on the category range to be set.
+	// If not specified or set to 0, defaults to 1024 from the selinux package.
+	SelinuxCategoryRange int `toml:"selinux_category_range" json:"selinuxCategoryRange"`
 	// SandboxImage is the image used by sandbox container.
 	SandboxImage string `toml:"sandbox_image" json:"sandboxImage"`
 	// StatsCollectPeriod is the period (in seconds) of snapshots stats collection.
@@ -236,6 +244,10 @@ type PluginConfig struct {
 	// container requests with huge page limits if the cgroup controller for hugepages is not present.
 	// This helps with supporting Kubernetes <=1.18 out of the box. (default is `true`)
 	TolerateMissingHugetlbController bool `toml:"tolerate_missing_hugetlb_controller" json:"tolerateMissingHugetlbController"`
+	// DisableHugetlbController indicates to silently disable the hugetlb controller, even when it is
+	// present in /sys/fs/cgroup/cgroup.controllers.
+	// This helps with running rootless mode + cgroup v2 + systemd but without hugetlb delegation.
+	DisableHugetlbController bool `toml:"disable_hugetlb_controller" json:"disableHugetlbController"`
 	// IgnoreImageDefinedVolumes ignores volumes defined by the image. Useful for better resource
 	// isolation, security and early detection of issues in the mount configuration when using
 	// ReadOnlyRootFilesystem since containers won't silently mount a temporary volume.
