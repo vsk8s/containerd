@@ -14,7 +14,7 @@ This doc includes:
 
 To build the `containerd` daemon, and the `ctr` simple test client, the following build system dependencies are required:
 
-* Go 1.10.x or above
+* Go 1.13.x or above except 1.14.x
 * Protoc 3.x compiler and headers (download at the [Google protobuf releases page](https://github.com/google/protobuf/releases))
 * Btrfs headers and libraries for your distribution. Note that building the btrfs driver can be disabled via the build tag `no_btrfs`, removing this dependency.
 * `libseccomp` is required if you're building with seccomp support
@@ -31,11 +31,11 @@ At this point you can use `go` to checkout `containerd` in your `GOPATH`:
 go get github.com/containerd/containerd
 ```
 
-For proper results, install the `protoc` release into `/usr/local` on your build system. For example, the following commands will download and install the 3.5.0 release for a 64-bit Linux host:
+For proper results, install the `protoc` release into `/usr/local` on your build system. For example, the following commands will download and install the 3.11.4 release for a 64-bit Linux host:
 
 ```
-$ wget -c https://github.com/google/protobuf/releases/download/v3.5.0/protoc-3.5.0-linux-x86_64.zip
-$ sudo unzip protoc-3.5.0-linux-x86_64.zip -d /usr/local
+$ wget -c https://github.com/google/protobuf/releases/download/v3.11.4/protoc-3.11.4-linux-x86_64.zip
+$ sudo unzip protoc-3.11.4-linux-x86_64.zip -d /usr/local
 ```
 
 `containerd` uses [Btrfs](https://en.wikipedia.org/wiki/Btrfs) it means that you
@@ -43,6 +43,8 @@ need to satisfy this dependencies in your system:
 
 * CentOS/Fedora: `yum install btrfs-progs-devel`
 * Debian/Ubuntu: `apt-get install btrfs-tools`
+	* Debian Buster/Ubuntu 19.10:
+	    `apt-get install btrfs-progs libbtrfs-dev`
 
 If you're building with seccomp, you'll need to install it with the following:
 
@@ -105,6 +107,9 @@ make generate
 > * `no_cri`: A build tag disables building Kubernetes [CRI](http://blog.kubernetes.io/2016/12/container-runtime-interface-cri-in-kubernetes.html) support into containerd.
 > See [here](https://github.com/containerd/cri-containerd#build-tags) for build tags of CRI plugin.
 > * `no_devmapper`: A build tag disables building the device mapper snapshot driver.
+> * `seccomp`: Enables seccomp support in the cri plugin
+> * `apparmor`: Enables apparmor support in the cri plugin
+> * `selinux`: Enables selinux support in the cri plugin
 >
 > For example, adding `BUILDTAGS=no_btrfs` to your environment before calling the **binaries**
 > Makefile target will disable the btrfs driver within the containerd Go build.
@@ -138,7 +143,7 @@ You can build an image from this `Dockerfile`:
 FROM golang
 
 RUN apt-get update && \
-    apt-get install -y btrfs-tools libseccomp-dev
+    apt-get install -y libbtrfs-dev libseccomp-dev
 ```
 
 Let's suppose that you built an image called `containerd/build`. From the
@@ -160,7 +165,7 @@ You are now ready to [build](#build-containerd):
 ```
 
 ## Build containerd and runc
-To have complete core container runtime, you will both `containerd` and `runc`. It is possible to build both of these via Docker container.
+To have complete core container runtime, you will need both `containerd` and `runc`. It is possible to build both of these via Docker container.
 
 You can use `go` to checkout `runc` in your `GOPATH`:
 
@@ -174,7 +179,7 @@ We can build an image from this `Dockerfile`:
 FROM golang
 
 RUN apt-get update && \
-    apt-get install -y btrfs-tools libseccomp-dev
+    apt-get install -y libbtrfs-dev libseccomp-dev
 
 ```
 

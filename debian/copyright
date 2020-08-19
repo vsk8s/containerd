@@ -3,30 +3,36 @@ Source: https://github.com/docker/containerd
 Files-Excluded:
   vendor/github.com/beorn7/perks
   vendor/github.com/BurntSushi/toml
+  vendor/github.com/cespare/xxhash
+  vendor/github.com/cilium/ebpf
   ~~vendor/github.com/containerd/aufs
   vendor/github.com/containerd/btrfs
-  vendor/github.com/containerd/cgroups
+  ~~vendor/github.com/containerd/cgroups
   vendor/github.com/containerd/console
   vendor/github.com/containerd/continuity
   ~~vendor/github.com/containerd/cri
   vendor/github.com/containerd/fifo
+  ~~vendor/github.com/containerd/imgcrypt
   vendor/github.com/containerd/go-cni
   vendor/github.com/containerd/go-runc
   vendor/github.com/containerd/ttrpc
   vendor/github.com/containerd/typeurl
   ~~vendor/github.com/containerd/zfs
+  vendor/github.com/containers/ocicrypt
   vendor/github.com/containernetworking/cni
   vendor/github.com/containernetworking/plugins
   vendor/github.com/coreos/go-systemd
   vendor/github.com/cpuguy83/go-md2man
   vendor/github.com/davecgh/go-spew
-  ~~vendor/github.com/docker/distribution
   ~~vendor/github.com/docker/docker
   vendor/github.com/docker/go-events
   vendor/github.com/docker/go-metrics
   vendor/github.com/docker/go-units
   vendor/github.com/docker/spdystream
   vendor/github.com/emicklei/go-restful
+  vendor/github.com/fsnotify/fsnotify
+  vendor/github.com/fullsailor/pkcs7
+  ~~vendor/github.com/go-logr/logr
   vendor/github.com/godbus/dbus
   vendor/github.com/gogo/googleapis
   vendor/github.com/gogo/protobuf
@@ -59,6 +65,7 @@ Files-Excluded:
   vendor/github.com/prometheus/procfs
   vendor/github.com/russross/blackfriday
   vendor/github.com/seccomp/libseccomp-golang
+  vendor/github.com/shurcooL/sanitized_anchor_name
   vendor/github.com/sirupsen/logrus
   vendor/github.com/syndtr/gocapability
   vendor/github.com/tchap/go-patricia
@@ -75,6 +82,7 @@ Files-Excluded:
   vendor/google.golang.org/grpc
   vendor/go.opencensus.io
   vendor/gopkg.in/inf.v0
+  vendor/gopkg.in/square/go-jose.v2
   vendor/gopkg.in/yaml.v2
   vendor/gotest.tools
   ~~vendor/k8s.io/api
@@ -83,9 +91,9 @@ Files-Excluded:
   ~~vendor/k8s.io/client-go
   ~~vendor/k8s.io/cri-api
   ~~vendor/k8s.io/klog
-  ~~vendor/k8s.io/kubernetes
   ~~vendor/k8s.io/utils
   vendor/sigs.k8s.io/yaml
+  vendor/sigs.k8s.io/structured-merge-diff
 
 Files: *
 Copyright: 2013-2016 Docker, Inc.
@@ -142,19 +150,18 @@ Files: vendor/github.com/containerd/cri/pkg/config/config.go
 Copyright: 2017 The Kubernetes Authors.
 License: Apache-2.0
 
+Files: vendor/github.com/go-logr/logr/*
+Copyright: 2019 The logr Authors
+License: Apache-2.0
+
 Files: vendor/k8s.io/*
 Copyright: 2014-2019 The Kubernetes Authors.
 License: Apache-2.0
 
-Files: vendor/k8s.io/klog/klog_file.go
-       vendor/k8s.io/klog/klog.go
+Files: vendor/k8s.io/klog/v2/klog_file.go
+       vendor/k8s.io/klog/v2/klog.go
 Copyright: 2013 Google Inc.
 License: Apache-2.0
-
-Files: vendor/k8s.io/kubernetes/third_party/protobuf/google/protobuf/compiler/plugin.proto
-       vendor/k8s.io/kubernetes/third_party/protobuf/google/protobuf/descriptor.proto
-Copyright: 2008 Google Inc.
-License: Go
 
 License: Apache-2.0
  Licensed under the Apache License, Version 2.0 (the "License");

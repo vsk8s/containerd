@@ -1,0 +1,19 @@
+From: Shengjing Zhu <zhsj@debian.org>
+Date: Sun, 17 May 2020 19:55:13 +0800
+Subject: Add go.mod file
+
+Fix build issue with
++ github.com/godbus/dbus/v5
++ github.com/coreos/go-systemd/v22
+---
+ go.mod | 1 +
+ 1 file changed, 1 insertion(+)
+ create mode 100644 go.mod
+
+diff --git a/go.mod b/go.mod
+new file mode 100644
+index 0000000..2b1dd45
+--- /dev/null
++++ b/go.mod
+@@ -0,0 +1 @@
++module github.com/containerd/containerd

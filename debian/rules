@@ -9,8 +9,9 @@ GO_LDFLAGS += -X $(PKG)/version.Revision=$(DEB_VERSION)
 GEN_MAN    := $(CURDIR)/_build/src/$(PKG)/gen_man.go
 EXCLUDES   += cmd/protoc-gen-gogoctrd cmd/gen-manpages cmd/containerd-stress
 EXCLUDES   += runtime/v2/example/cmd
-CRI_FILE   += cmd/containerd/builtins_cri_linux.go vendor/github.com/containerd/cri
+CRI_FILE   += cmd/containerd/builtins_cri.go vendor/github.com/containerd/cri
 CRI_FILE   += vendor/k8s.io vendor/github.com/docker/docker
+CRI_FILE   += vendor/github.com/containerd/imgcrypt
 
 ifneq (,$(findstring gccgo, $(shell go version)))
 TAGS     += no_cri
