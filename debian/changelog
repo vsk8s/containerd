@@ -1,3 +1,9 @@
+containerd (1.4.0~ds1-1) unstable; urgency=medium
+
+  * New upstream version 1.4.0~ds1
+
+ -- Shengjing Zhu <zhsj@debian.org>  Thu, 20 Aug 2020 01:27:53 +0800
+
 containerd (1.4.0~beta2~ds1-1) experimental; urgency=medium
 
   [ Shengjing Zhu ]
