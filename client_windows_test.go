@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 
 	"github.com/Microsoft/hcsshim/osversion"
+	_ "github.com/Microsoft/hcsshim/test/functional/manifest" // For rsrc_amd64.syso
 )
 
 const (
@@ -51,6 +52,11 @@ func init() {
 		testImage = "mcr.microsoft.com/windows/nanoserver:1903"
 	case 18363: // this isn't in osversion yet, but the image should be available
 		testImage = "mcr.microsoft.com/windows/nanoserver:1909"
+	case 19041: // this isn't in osversion yet, but the image should be available
+		testImage = "mcr.microsoft.com/windows/nanoserver:2004"
+	default:
+		fmt.Println("No test image defined for Windows build version:", b)
+		panic("No windows test image found for this Windows build")
 	}
 
 	fmt.Println("Windows test image:", testImage, ", Windows build version:", b)
