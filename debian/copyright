@@ -150,10 +150,6 @@ Files: vendor/github.com/containerd/cri/pkg/config/config.go
 Copyright: 2017 The Kubernetes Authors.
 License: Apache-2.0
 
-Files: vendor/github.com/go-logr/logr/*
-Copyright: 2019 The logr Authors
-License: Apache-2.0
-
 Files: vendor/k8s.io/*
 Copyright: 2014-2019 The Kubernetes Authors.
 License: Apache-2.0
