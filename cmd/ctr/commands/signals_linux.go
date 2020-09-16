@@ -14,24 +14,14 @@
    limitations under the License.
 */
 
-package v2
+package commands
 
-import "strconv"
+import (
+	"os"
 
-type Pids struct {
-	Max int64
-}
+	"golang.org/x/sys/unix"
+)
 
-func (r *Pids) Values() (o []Value) {
-	if r.Max != 0 {
-		limit := "max"
-		if r.Max > 0 {
-			limit = strconv.FormatInt(r.Max, 10)
-		}
-		o = append(o, Value{
-			filename: "pids.max",
-			value:    limit,
-		})
-	}
-	return o
+func canIgnoreSignal(s os.Signal) bool {
+	return s == unix.SIGURG
 }
