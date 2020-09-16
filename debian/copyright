@@ -7,7 +7,7 @@ Files-Excluded:
   vendor/github.com/cilium/ebpf
   ~~vendor/github.com/containerd/aufs
   vendor/github.com/containerd/btrfs
-  ~~vendor/github.com/containerd/cgroups
+  vendor/github.com/containerd/cgroups
   vendor/github.com/containerd/console
   vendor/github.com/containerd/continuity
   ~~vendor/github.com/containerd/cri
