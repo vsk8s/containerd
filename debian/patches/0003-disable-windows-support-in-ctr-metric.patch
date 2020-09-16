@@ -1,5 +1,5 @@
 From: Shengjing Zhu <zhsj@debian.org>
-Date: Sun, 17 May 2020 19:38:48 +0800
+Date: Wed, 16 Sep 2020 15:15:44 +0800
 Subject: disable windows support in ctr metric
 
 ---
@@ -7,7 +7,7 @@ Subject: disable windows support in ctr metric
  1 file changed, 55 deletions(-)
 
 diff --git a/cmd/ctr/commands/tasks/metrics.go b/cmd/ctr/commands/tasks/metrics.go
-index 263f183..8e92546 100644
+index 3fd1493..8e92546 100644
 --- a/cmd/ctr/commands/tasks/metrics.go
 +++ b/cmd/ctr/commands/tasks/metrics.go
 @@ -25,7 +25,6 @@ import (
@@ -64,7 +64,7 @@ index 263f183..8e92546 100644
 -	if stats.Processor != nil {
 -		fmt.Fprintf(w, "cpu.total_runtime_ns\t%d\t\n", stats.Processor.TotalRuntimeNS)
 -		fmt.Fprintf(w, "cpu.runtime_user_ns\t%d\t\n", stats.Processor.RuntimeUserNS)
--		fmt.Fprintf(w, "cpu.runtime_kernel_ns\t%d\t\n", stats.Processor.RuntimeUserNS)
+-		fmt.Fprintf(w, "cpu.runtime_kernel_ns\t%d\t\n", stats.Processor.RuntimeKernelNS)
 -	}
 -	if stats.Memory != nil {
 -		fmt.Fprintf(w, "memory.commit_bytes\t%d\t\n", stats.Memory.MemoryUsageCommitBytes)
