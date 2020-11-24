@@ -1,3 +1,9 @@
+containerd (1.4.1~ds1-2) unstable; urgency=medium
+
+  * Add patch to relax structured-merge-diff version (Closes: #975636)
+
+ -- Shengjing Zhu <zhsj@debian.org>  Tue, 24 Nov 2020 23:06:33 +0800
+
 containerd (1.4.1~ds1-1) unstable; urgency=medium
 
   * New upstream version 1.4.1~ds1
