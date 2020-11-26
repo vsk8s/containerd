@@ -8,14 +8,14 @@ Forwarded: not-needed
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/vendor/k8s.io/apimachinery/pkg/runtime/converter.go b/vendor/k8s.io/apimachinery/pkg/runtime/converter.go
-index 31f6e00..5795177 100644
+index 871e4c8..5795177 100644
 --- a/vendor/k8s.io/apimachinery/pkg/runtime/converter.go
 +++ b/vendor/k8s.io/apimachinery/pkg/runtime/converter.go
 @@ -31,7 +31,7 @@ import (
  	"k8s.io/apimachinery/pkg/conversion"
  	"k8s.io/apimachinery/pkg/util/json"
  	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
--	"sigs.k8s.io/structured-merge-diff/v3/value"
+-	"sigs.k8s.io/structured-merge-diff/v4/value"
 +	"sigs.k8s.io/structured-merge-diff/value"
  
  	"k8s.io/klog/v2"
