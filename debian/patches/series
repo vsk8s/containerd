@@ -2,3 +2,4 @@
 0002-disable-runhcs-option-in-cri-config.patch
 0003-disable-windows-support-in-ctr-metric.patch
 0004-relax-structured-merge-diff-version.patch
+0005-backport-github.com-containerd-containerd-remotes.patch

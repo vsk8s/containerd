@@ -1,0 +1,1326 @@
+From: Shengjing Zhu <zhsj@debian.org>
+Date: Fri, 27 Nov 2020 23:57:23 +0800
+Subject: backport github.com/containerd/containerd/remotes
+
+For building docker.io 20.10
+
+This whole director is replaced by commit
+f601887a3cafeef462d72add63693d9941889bd7
+
+Forwarded: not-needed
+---
+ remotes/docker/auth.go           | 198 ---------------------------
+ remotes/docker/auth/fetch.go     | 202 +++++++++++++++++++++++++++
+ remotes/docker/auth/parse.go     | 203 ++++++++++++++++++++++++++++
+ remotes/docker/authorizer.go     | 285 ++++++++++-----------------------------
+ remotes/docker/fetcher.go        |   2 +-
+ remotes/docker/httpreadseeker.go |   2 +-
+ remotes/docker/pusher.go         |  36 +++--
+ remotes/docker/resolver.go       |   6 +-
+ remotes/docker/scope.go          |  14 +-
+ remotes/docker/scope_test.go     |   4 +-
+ remotes/errors/errors.go         |  46 +++++++
+ 11 files changed, 554 insertions(+), 444 deletions(-)
+ delete mode 100644 remotes/docker/auth.go
+ create mode 100644 remotes/docker/auth/fetch.go
+ create mode 100644 remotes/docker/auth/parse.go
+ create mode 100644 remotes/errors/errors.go
+
+diff --git a/remotes/docker/auth.go b/remotes/docker/auth.go
+deleted file mode 100644
+index 70cfdea..0000000
+--- a/remotes/docker/auth.go
++++ /dev/null
+@@ -1,198 +0,0 @@
+-/*
+-   Copyright The containerd Authors.
+-
+-   Licensed under the Apache License, Version 2.0 (the "License");
+-   you may not use this file except in compliance with the License.
+-   You may obtain a copy of the License at
+-
+-       http://www.apache.org/licenses/LICENSE-2.0
+-
+-   Unless required by applicable law or agreed to in writing, software
+-   distributed under the License is distributed on an "AS IS" BASIS,
+-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-   See the License for the specific language governing permissions and
+-   limitations under the License.
+-*/
+-
+-package docker
+-
+-import (
+-	"net/http"
+-	"sort"
+-	"strings"
+-)
+-
+-type authenticationScheme byte
+-
+-const (
+-	basicAuth  authenticationScheme = 1 << iota // Defined in RFC 7617
+-	digestAuth                                  // Defined in RFC 7616
+-	bearerAuth                                  // Defined in RFC 6750
+-)
+-
+-// challenge carries information from a WWW-Authenticate response header.
+-// See RFC 2617.
+-type challenge struct {
+-	// scheme is the auth-scheme according to RFC 2617
+-	scheme authenticationScheme
+-
+-	// parameters are the auth-params according to RFC 2617
+-	parameters map[string]string
+-}
+-
+-type byScheme []challenge
+-
+-func (bs byScheme) Len() int      { return len(bs) }
+-func (bs byScheme) Swap(i, j int) { bs[i], bs[j] = bs[j], bs[i] }
+-
+-// Sort in priority order: token > digest > basic
+-func (bs byScheme) Less(i, j int) bool { return bs[i].scheme > bs[j].scheme }
+-
+-// Octet types from RFC 2616.
+-type octetType byte
+-
+-var octetTypes [256]octetType
+-
+-const (
+-	isToken octetType = 1 << iota
+-	isSpace
+-)
+-
+-func init() {
+-	// OCTET      = <any 8-bit sequence of data>
+-	// CHAR       = <any US-ASCII character (octets 0 - 127)>
+-	// CTL        = <any US-ASCII control character (octets 0 - 31) and DEL (127)>
+-	// CR         = <US-ASCII CR, carriage return (13)>
+-	// LF         = <US-ASCII LF, linefeed (10)>
+-	// SP         = <US-ASCII SP, space (32)>
+-	// HT         = <US-ASCII HT, horizontal-tab (9)>
+-	// <">        = <US-ASCII double-quote mark (34)>
+-	// CRLF       = CR LF
+-	// LWS        = [CRLF] 1*( SP | HT )
+-	// TEXT       = <any OCTET except CTLs, but including LWS>
+-	// separators = "(" | ")" | "<" | ">" | "@" | "," | ";" | ":" | "\" | <">
+-	//              | "/" | "[" | "]" | "?" | "=" | "{" | "}" | SP | HT
+-	// token      = 1*<any CHAR except CTLs or separators>
+-	// qdtext     = <any TEXT except <">>
+-
+-	for c := 0; c < 256; c++ {
+-		var t octetType
+-		isCtl := c <= 31 || c == 127
+-		isChar := 0 <= c && c <= 127
+-		isSeparator := strings.ContainsRune(" \t\"(),/:;<=>?@[]\\{}", rune(c))
+-		if strings.ContainsRune(" \t\r\n", rune(c)) {
+-			t |= isSpace
+-		}
+-		if isChar && !isCtl && !isSeparator {
+-			t |= isToken
+-		}
+-		octetTypes[c] = t
+-	}
+-}
+-
+-func parseAuthHeader(header http.Header) []challenge {
+-	challenges := []challenge{}
+-	for _, h := range header[http.CanonicalHeaderKey("WWW-Authenticate")] {
+-		v, p := parseValueAndParams(h)
+-		var s authenticationScheme
+-		switch v {
+-		case "basic":
+-			s = basicAuth
+-		case "digest":
+-			s = digestAuth
+-		case "bearer":
+-			s = bearerAuth
+-		default:
+-			continue
+-		}
+-		challenges = append(challenges, challenge{scheme: s, parameters: p})
+-	}
+-	sort.Stable(byScheme(challenges))
+-	return challenges
+-}
+-
+-func parseValueAndParams(header string) (value string, params map[string]string) {
+-	params = make(map[string]string)
+-	value, s := expectToken(header)
+-	if value == "" {
+-		return
+-	}
+-	value = strings.ToLower(value)
+-	for {
+-		var pkey string
+-		pkey, s = expectToken(skipSpace(s))
+-		if pkey == "" {
+-			return
+-		}
+-		if !strings.HasPrefix(s, "=") {
+-			return
+-		}
+-		var pvalue string
+-		pvalue, s = expectTokenOrQuoted(s[1:])
+-		if pvalue == "" {
+-			return
+-		}
+-		pkey = strings.ToLower(pkey)
+-		params[pkey] = pvalue
+-		s = skipSpace(s)
+-		if !strings.HasPrefix(s, ",") {
+-			return
+-		}
+-		s = s[1:]
+-	}
+-}
+-
+-func skipSpace(s string) (rest string) {
+-	i := 0
+-	for ; i < len(s); i++ {
+-		if octetTypes[s[i]]&isSpace == 0 {
+-			break
+-		}
+-	}
+-	return s[i:]
+-}
+-
+-func expectToken(s string) (token, rest string) {
+-	i := 0
+-	for ; i < len(s); i++ {
+-		if octetTypes[s[i]]&isToken == 0 {
+-			break
+-		}
+-	}
+-	return s[:i], s[i:]
+-}
+-
+-func expectTokenOrQuoted(s string) (value string, rest string) {
+-	if !strings.HasPrefix(s, "\"") {
+-		return expectToken(s)
+-	}
+-	s = s[1:]
+-	for i := 0; i < len(s); i++ {
+-		switch s[i] {
+-		case '"':
+-			return s[:i], s[i+1:]
+-		case '\\':
+-			p := make([]byte, len(s)-1)
+-			j := copy(p, s[:i])
+-			escape := true
+-			for i = i + 1; i < len(s); i++ {
+-				b := s[i]
+-				switch {
+-				case escape:
+-					escape = false
+-					p[j] = b
+-					j++
+-				case b == '\\':
+-					escape = true
+-				case b == '"':
+-					return string(p[:j]), s[i+1:]
+-				default:
+-					p[j] = b
+-					j++
+-				}
+-			}
+-			return "", ""
+-		}
+-	}
+-	return "", ""
+-}
+diff --git a/remotes/docker/auth/fetch.go b/remotes/docker/auth/fetch.go
+new file mode 100644
+index 0000000..f65c6be
+--- /dev/null
++++ b/remotes/docker/auth/fetch.go
+@@ -0,0 +1,202 @@
++/*
++   Copyright The containerd Authors.
++
++   Licensed under the Apache License, Version 2.0 (the "License");
++   you may not use this file except in compliance with the License.
++   You may obtain a copy of the License at
++
++       http://www.apache.org/licenses/LICENSE-2.0
++
++   Unless required by applicable law or agreed to in writing, software
++   distributed under the License is distributed on an "AS IS" BASIS,
++   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++   See the License for the specific language governing permissions and
++   limitations under the License.
++*/
++
++package auth
++
++import (
++	"context"
++	"encoding/json"
++	"net/http"
++	"net/url"
++	"strings"
++	"time"
++
++	"github.com/containerd/containerd/log"
++	remoteserrors "github.com/containerd/containerd/remotes/errors"
++	"github.com/pkg/errors"
++	"golang.org/x/net/context/ctxhttp"
++)
++
++var (
++	// ErrNoToken is returned if a request is successful but the body does not
++	// contain an authorization token.
++	ErrNoToken = errors.New("authorization server did not include a token in the response")
++)
++
++// GenerateTokenOptions generates options for fetching a token based on a challenge
++func GenerateTokenOptions(ctx context.Context, host, username, secret string, c Challenge) (TokenOptions, error) {
++	realm, ok := c.Parameters["realm"]
++	if !ok {
++		return TokenOptions{}, errors.New("no realm specified for token auth challenge")
++	}
++
++	realmURL, err := url.Parse(realm)
++	if err != nil {
++		return TokenOptions{}, errors.Wrap(err, "invalid token auth challenge realm")
++	}
++
++	to := TokenOptions{
++		Realm:    realmURL.String(),
++		Service:  c.Parameters["service"],
++		Username: username,
++		Secret:   secret,
++	}
++
++	scope, ok := c.Parameters["scope"]
++	if ok {
++		to.Scopes = append(to.Scopes, scope)
++	} else {
++		log.G(ctx).WithField("host", host).Debug("no scope specified for token auth challenge")
++	}
++
++	return to, nil
++}
++
++// TokenOptions are optios for requesting a token
++type TokenOptions struct {
++	Realm    string
++	Service  string
++	Scopes   []string
++	Username string
++	Secret   string
++}
++
++// OAuthTokenResponse is response from fetching token with a OAuth POST request
++type OAuthTokenResponse struct {
++	AccessToken  string    `json:"access_token"`
++	RefreshToken string    `json:"refresh_token"`
++	ExpiresIn    int       `json:"expires_in"`
++	IssuedAt     time.Time `json:"issued_at"`
++	Scope        string    `json:"scope"`
++}
++
++// FetchTokenWithOAuth fetches a token using a POST request
++func FetchTokenWithOAuth(ctx context.Context, client *http.Client, headers http.Header, clientID string, to TokenOptions) (*OAuthTokenResponse, error) {
++	form := url.Values{}
++	if len(to.Scopes) > 0 {
++		form.Set("scope", strings.Join(to.Scopes, " "))
++	}
++	form.Set("service", to.Service)
++	form.Set("client_id", clientID)
++
++	if to.Username == "" {
++		form.Set("grant_type", "refresh_token")
++		form.Set("refresh_token", to.Secret)
++	} else {
++		form.Set("grant_type", "password")
++		form.Set("username", to.Username)
++		form.Set("password", to.Secret)
++	}
++
++	req, err := http.NewRequest("POST", to.Realm, strings.NewReader(form.Encode()))
++	if err != nil {
++		return nil, err
++	}
++	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
++	for k, v := range headers {
++		req.Header[k] = append(req.Header[k], v...)
++	}
++
++	resp, err := ctxhttp.Do(ctx, client, req)
++	if err != nil {
++		return nil, err
++	}
++	defer resp.Body.Close()
++
++	if resp.StatusCode < 200 || resp.StatusCode >= 400 {
++		return nil, errors.WithStack(remoteserrors.NewUnexpectedStatusErr(resp))
++	}
++
++	decoder := json.NewDecoder(resp.Body)
++
++	var tr OAuthTokenResponse
++	if err = decoder.Decode(&tr); err != nil {
++		return nil, errors.Wrap(err, "unable to decode token response")
++	}
++
++	if tr.AccessToken == "" {
++		return nil, errors.WithStack(ErrNoToken)
++	}
++
++	return &tr, nil
++}
++
++// FetchTokenResponse is response from fetching token with GET request
++type FetchTokenResponse struct {
++	Token        string    `json:"token"`
++	AccessToken  string    `json:"access_token"`
++	ExpiresIn    int       `json:"expires_in"`
++	IssuedAt     time.Time `json:"issued_at"`
++	RefreshToken string    `json:"refresh_token"`
++}
++
++// FetchToken fetches a token using a GET request
++func FetchToken(ctx context.Context, client *http.Client, headers http.Header, to TokenOptions) (*FetchTokenResponse, error) {
++	req, err := http.NewRequest("GET", to.Realm, nil)
++	if err != nil {
++		return nil, err
++	}
++
++	for k, v := range headers {
++		req.Header[k] = append(req.Header[k], v...)
++	}
++
++	reqParams := req.URL.Query()
++
++	if to.Service != "" {
++		reqParams.Add("service", to.Service)
++	}
++
++	for _, scope := range to.Scopes {
++		reqParams.Add("scope", scope)
++	}
++
++	if to.Secret != "" {
++		req.SetBasicAuth(to.Username, to.Secret)
++	}
++
++	req.URL.RawQuery = reqParams.Encode()
++
++	resp, err := ctxhttp.Do(ctx, client, req)
++	if err != nil {
++		return nil, err
++	}
++	defer resp.Body.Close()
++
++	if resp.StatusCode < 200 || resp.StatusCode >= 400 {
++		return nil, errors.WithStack(remoteserrors.NewUnexpectedStatusErr(resp))
++	}
++
++	decoder := json.NewDecoder(resp.Body)
++
++	var tr FetchTokenResponse
++	if err = decoder.Decode(&tr); err != nil {
++		return nil, errors.Wrap(err, "unable to decode token response")
++	}
++
++	// `access_token` is equivalent to `token` and if both are specified
++	// the choice is undefined.  Canonicalize `access_token` by sticking
++	// things in `token`.
++	if tr.AccessToken != "" {
++		tr.Token = tr.AccessToken
++	}
++
++	if tr.Token == "" {
++		return nil, errors.WithStack(ErrNoToken)
++	}
++
++	return &tr, nil
++}
+diff --git a/remotes/docker/auth/parse.go b/remotes/docker/auth/parse.go
+new file mode 100644
+index 0000000..223fa2d
+--- /dev/null
++++ b/remotes/docker/auth/parse.go
+@@ -0,0 +1,203 @@
++/*
++   Copyright The containerd Authors.
++
++   Licensed under the Apache License, Version 2.0 (the "License");
++   you may not use this file except in compliance with the License.
++   You may obtain a copy of the License at
++
++       http://www.apache.org/licenses/LICENSE-2.0
++
++   Unless required by applicable law or agreed to in writing, software
++   distributed under the License is distributed on an "AS IS" BASIS,
++   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++   See the License for the specific language governing permissions and
++   limitations under the License.
++*/
++
++package auth
++
++import (
++	"net/http"
++	"sort"
++	"strings"
++)
++
++// AuthenticationScheme defines scheme of the authentication method
++type AuthenticationScheme byte
++
++const (
++	// BasicAuth is scheme for Basic HTTP Authentication RFC 7617
++	BasicAuth AuthenticationScheme = 1 << iota
++	// DigestAuth is scheme for HTTP Digest Access Authentication RFC 7616
++	DigestAuth
++	// BearerAuth is scheme for OAuth 2.0 Bearer Tokens RFC 6750
++	BearerAuth
++)
++
++// Challenge carries information from a WWW-Authenticate response header.
++// See RFC 2617.
++type Challenge struct {
++	// scheme is the auth-scheme according to RFC 2617
++	Scheme AuthenticationScheme
++
++	// parameters are the auth-params according to RFC 2617
++	Parameters map[string]string
++}
++
++type byScheme []Challenge
++
++func (bs byScheme) Len() int      { return len(bs) }
++func (bs byScheme) Swap(i, j int) { bs[i], bs[j] = bs[j], bs[i] }
++
++// Sort in priority order: token > digest > basic
++func (bs byScheme) Less(i, j int) bool { return bs[i].Scheme > bs[j].Scheme }
++
++// Octet types from RFC 2616.
++type octetType byte
++
++var octetTypes [256]octetType
++
++const (
++	isToken octetType = 1 << iota
++	isSpace
++)
++
++func init() {
++	// OCTET      = <any 8-bit sequence of data>
++	// CHAR       = <any US-ASCII character (octets 0 - 127)>
++	// CTL        = <any US-ASCII control character (octets 0 - 31) and DEL (127)>
++	// CR         = <US-ASCII CR, carriage return (13)>
++	// LF         = <US-ASCII LF, linefeed (10)>
++	// SP         = <US-ASCII SP, space (32)>
++	// HT         = <US-ASCII HT, horizontal-tab (9)>
++	// <">        = <US-ASCII double-quote mark (34)>
++	// CRLF       = CR LF
++	// LWS        = [CRLF] 1*( SP | HT )
++	// TEXT       = <any OCTET except CTLs, but including LWS>
++	// separators = "(" | ")" | "<" | ">" | "@" | "," | ";" | ":" | "\" | <">
++	//              | "/" | "[" | "]" | "?" | "=" | "{" | "}" | SP | HT
++	// token      = 1*<any CHAR except CTLs or separators>
++	// qdtext     = <any TEXT except <">>
++
++	for c := 0; c < 256; c++ {
++		var t octetType
++		isCtl := c <= 31 || c == 127
++		isChar := 0 <= c && c <= 127
++		isSeparator := strings.ContainsRune(" \t\"(),/:;<=>?@[]\\{}", rune(c))
++		if strings.ContainsRune(" \t\r\n", rune(c)) {
++			t |= isSpace
++		}
++		if isChar && !isCtl && !isSeparator {
++			t |= isToken
++		}
++		octetTypes[c] = t
++	}
++}
++
++// ParseAuthHeader parses challenges from WWW-Authenticate header
++func ParseAuthHeader(header http.Header) []Challenge {
++	challenges := []Challenge{}
++	for _, h := range header[http.CanonicalHeaderKey("WWW-Authenticate")] {
++		v, p := parseValueAndParams(h)
++		var s AuthenticationScheme
++		switch v {
++		case "basic":
++			s = BasicAuth
++		case "digest":
++			s = DigestAuth
++		case "bearer":
++			s = BearerAuth
++		default:
++			continue
++		}
++		challenges = append(challenges, Challenge{Scheme: s, Parameters: p})
++	}
++	sort.Stable(byScheme(challenges))
++	return challenges
++}
++
++func parseValueAndParams(header string) (value string, params map[string]string) {
++	params = make(map[string]string)
++	value, s := expectToken(header)
++	if value == "" {
++		return
++	}
++	value = strings.ToLower(value)
++	for {
++		var pkey string
++		pkey, s = expectToken(skipSpace(s))
++		if pkey == "" {
++			return
++		}
++		if !strings.HasPrefix(s, "=") {
++			return
++		}
++		var pvalue string
++		pvalue, s = expectTokenOrQuoted(s[1:])
++		if pvalue == "" {
++			return
++		}
++		pkey = strings.ToLower(pkey)
++		params[pkey] = pvalue
++		s = skipSpace(s)
++		if !strings.HasPrefix(s, ",") {
++			return
++		}
++		s = s[1:]
++	}
++}
++
++func skipSpace(s string) (rest string) {
++	i := 0
++	for ; i < len(s); i++ {
++		if octetTypes[s[i]]&isSpace == 0 {
++			break
++		}
++	}
++	return s[i:]
++}
++
++func expectToken(s string) (token, rest string) {
++	i := 0
++	for ; i < len(s); i++ {
++		if octetTypes[s[i]]&isToken == 0 {
++			break
++		}
++	}
++	return s[:i], s[i:]
++}
++
++func expectTokenOrQuoted(s string) (value string, rest string) {
++	if !strings.HasPrefix(s, "\"") {
++		return expectToken(s)
++	}
++	s = s[1:]
++	for i := 0; i < len(s); i++ {
++		switch s[i] {
++		case '"':
++			return s[:i], s[i+1:]
++		case '\\':
++			p := make([]byte, len(s)-1)
++			j := copy(p, s[:i])
++			escape := true
++			for i = i + 1; i < len(s); i++ {
++				b := s[i]
++				switch {
++				case escape:
++					escape = false
++					p[j] = b
++					j++
++				case b == '\\':
++					escape = true
++				case b == '"':
++					return string(p[:j]), s[i+1:]
++				default:
++					p[j] = b
++					j++
++				}
++			}
++			return "", ""
++		}
++	}
++	return "", ""
++}
+diff --git a/remotes/docker/authorizer.go b/remotes/docker/authorizer.go
+index 001423a..67e4aea 100644
+--- a/remotes/docker/authorizer.go
++++ b/remotes/docker/authorizer.go
+@@ -19,21 +19,17 @@ package docker
+ import (
+ 	"context"
+ 	"encoding/base64"
+-	"encoding/json"
+ 	"fmt"
+-	"io"
+-	"io/ioutil"
+ 	"net/http"
+-	"net/url"
+ 	"strings"
+ 	"sync"
+-	"time"
+ 
+ 	"github.com/containerd/containerd/errdefs"
+ 	"github.com/containerd/containerd/log"
++	"github.com/containerd/containerd/remotes/docker/auth"
++	remoteerrors "github.com/containerd/containerd/remotes/errors"
+ 	"github.com/pkg/errors"
+ 	"github.com/sirupsen/logrus"
+-	"golang.org/x/net/context/ctxhttp"
+ )
+ 
+ type dockerAuthorizer struct {
+@@ -135,8 +131,8 @@ func (a *dockerAuthorizer) AddResponses(ctx context.Context, responses []*http.R
+ 
+ 	a.mu.Lock()
+ 	defer a.mu.Unlock()
+-	for _, c := range parseAuthHeader(last.Header) {
+-		if c.scheme == bearerAuth {
++	for _, c := range auth.ParseAuthHeader(last.Header) {
++		if c.Scheme == auth.BearerAuth {
+ 			if err := invalidAuthorization(c, responses); err != nil {
+ 				delete(a.handlers, host)
+ 				return err
+@@ -152,26 +148,35 @@ func (a *dockerAuthorizer) AddResponses(ctx context.Context, responses []*http.R
+ 				return nil
+ 			}
+ 
+-			common, err := a.generateTokenOptions(ctx, host, c)
++			var username, secret string
++			if a.credentials != nil {
++				var err error
++				username, secret, err = a.credentials(host)
++				if err != nil {
++					return err
++				}
++			}
++
++			common, err := auth.GenerateTokenOptions(ctx, host, username, secret, c)
+ 			if err != nil {
+ 				return err
+ 			}
+ 
+-			a.handlers[host] = newAuthHandler(a.client, a.header, c.scheme, common)
++			a.handlers[host] = newAuthHandler(a.client, a.header, c.Scheme, common)
+ 			return nil
+-		} else if c.scheme == basicAuth && a.credentials != nil {
++		} else if c.Scheme == auth.BasicAuth && a.credentials != nil {
+ 			username, secret, err := a.credentials(host)
+ 			if err != nil {
+ 				return err
+ 			}
+ 
+ 			if username != "" && secret != "" {
+-				common := tokenOptions{
+-					username: username,
+-					secret:   secret,
++				common := auth.TokenOptions{
++					Username: username,
++					Secret:   secret,
+ 				}
+ 
+-				a.handlers[host] = newAuthHandler(a.client, a.header, c.scheme, common)
++				a.handlers[host] = newAuthHandler(a.client, a.header, c.Scheme, common)
+ 				return nil
+ 			}
+ 		}
+@@ -179,38 +184,6 @@ func (a *dockerAuthorizer) AddResponses(ctx context.Context, responses []*http.R
+ 	return errors.Wrap(errdefs.ErrNotImplemented, "failed to find supported auth scheme")
+ }
+ 
+-func (a *dockerAuthorizer) generateTokenOptions(ctx context.Context, host string, c challenge) (tokenOptions, error) {
+-	realm, ok := c.parameters["realm"]
+-	if !ok {
+-		return tokenOptions{}, errors.New("no realm specified for token auth challenge")
+-	}
+-
+-	realmURL, err := url.Parse(realm)
+-	if err != nil {
+-		return tokenOptions{}, errors.Wrap(err, "invalid token auth challenge realm")
+-	}
+-
+-	to := tokenOptions{
+-		realm:   realmURL.String(),
+-		service: c.parameters["service"],
+-	}
+-
+-	scope, ok := c.parameters["scope"]
+-	if ok {
+-		to.scopes = append(to.scopes, scope)
+-	} else {
+-		log.G(ctx).WithField("host", host).Debug("no scope specified for token auth challenge")
+-	}
+-
+-	if a.credentials != nil {
+-		to.username, to.secret, err = a.credentials(host)
+-		if err != nil {
+-			return tokenOptions{}, err
+-		}
+-	}
+-	return to, nil
+-}
+-
+ // authResult is used to control limit rate.
+ type authResult struct {
+ 	sync.WaitGroup
+@@ -227,17 +200,17 @@ type authHandler struct {
+ 	client *http.Client
+ 
+ 	// only support basic and bearer schemes
+-	scheme authenticationScheme
++	scheme auth.AuthenticationScheme
+ 
+ 	// common contains common challenge answer
+-	common tokenOptions
++	common auth.TokenOptions
+ 
+ 	// scopedTokens caches token indexed by scopes, which used in
+ 	// bearer auth case
+ 	scopedTokens map[string]*authResult
+ }
+ 
+-func newAuthHandler(client *http.Client, hdr http.Header, scheme authenticationScheme, opts tokenOptions) *authHandler {
++func newAuthHandler(client *http.Client, hdr http.Header, scheme auth.AuthenticationScheme, opts auth.TokenOptions) *authHandler {
+ 	return &authHandler{
+ 		header:       hdr,
+ 		client:       client,
+@@ -249,17 +222,17 @@ func newAuthHandler(client *http.Client, hdr http.Header, scheme authenticationS
+ 
+ func (ah *authHandler) authorize(ctx context.Context) (string, error) {
+ 	switch ah.scheme {
+-	case basicAuth:
++	case auth.BasicAuth:
+ 		return ah.doBasicAuth(ctx)
+-	case bearerAuth:
++	case auth.BearerAuth:
+ 		return ah.doBearerAuth(ctx)
+ 	default:
+-		return "", errors.Wrap(errdefs.ErrNotImplemented, "failed to find supported auth scheme")
++		return "", errors.Wrapf(errdefs.ErrNotImplemented, "failed to find supported auth scheme: %s", string(ah.scheme))
+ 	}
+ }
+ 
+ func (ah *authHandler) doBasicAuth(ctx context.Context) (string, error) {
+-	username, secret := ah.common.username, ah.common.secret
++	username, secret := ah.common.Username, ah.common.Secret
+ 
+ 	if username == "" || secret == "" {
+ 		return "", fmt.Errorf("failed to handle basic auth because missing username or secret")
+@@ -269,14 +242,14 @@ func (ah *authHandler) doBasicAuth(ctx context.Context) (string, error) {
+ 	return fmt.Sprintf("Basic %s", auth), nil
+ }
+ 
+-func (ah *authHandler) doBearerAuth(ctx context.Context) (string, error) {
++func (ah *authHandler) doBearerAuth(ctx context.Context) (token string, err error) {
+ 	// copy common tokenOptions
+ 	to := ah.common
+ 
+-	to.scopes = GetTokenScopes(ctx, to.scopes)
++	to.Scopes = GetTokenScopes(ctx, to.Scopes)
+ 
+ 	// Docs: https://docs.docker.com/registry/spec/auth/scope
+-	scoped := strings.Join(to.scopes, " ")
++	scoped := strings.Join(to.Scopes, " ")
+ 
+ 	ah.Lock()
+ 	if r, exist := ah.scopedTokens[scoped]; exist {
+@@ -291,174 +264,52 @@ func (ah *authHandler) doBearerAuth(ctx context.Context) (string, error) {
+ 	ah.scopedTokens[scoped] = r
+ 	ah.Unlock()
+ 
++	defer func() {
++		token = fmt.Sprintf("Bearer %s", token)
++		r.token, r.err = token, err
++		r.Done()
++	}()
++
+ 	// fetch token for the resource scope
+-	var (
+-		token string
+-		err   error
+-	)
+-	if to.secret != "" {
++	if to.Secret != "" {
++		defer func() {
++			err = errors.Wrap(err, "failed to fetch oauth token")
++		}()
+ 		// credential information is provided, use oauth POST endpoint
+-		token, err = ah.fetchTokenWithOAuth(ctx, to)
+-		err = errors.Wrap(err, "failed to fetch oauth token")
+-	} else {
+-		// do request anonymously
+-		token, err = ah.fetchToken(ctx, to)
+-		err = errors.Wrap(err, "failed to fetch anonymous token")
+-	}
+-	token = fmt.Sprintf("Bearer %s", token)
+-
+-	r.token, r.err = token, err
+-	r.Done()
+-	return r.token, r.err
+-}
+-
+-type tokenOptions struct {
+-	realm    string
+-	service  string
+-	scopes   []string
+-	username string
+-	secret   string
+-}
+-
+-type postTokenResponse struct {
+-	AccessToken  string    `json:"access_token"`
+-	RefreshToken string    `json:"refresh_token"`
+-	ExpiresIn    int       `json:"expires_in"`
+-	IssuedAt     time.Time `json:"issued_at"`
+-	Scope        string    `json:"scope"`
+-}
+-
+-func (ah *authHandler) fetchTokenWithOAuth(ctx context.Context, to tokenOptions) (string, error) {
+-	form := url.Values{}
+-	if len(to.scopes) > 0 {
+-		form.Set("scope", strings.Join(to.scopes, " "))
+-	}
+-	form.Set("service", to.service)
+-	// TODO: Allow setting client_id
+-	form.Set("client_id", "containerd-client")
+-
+-	if to.username == "" {
+-		form.Set("grant_type", "refresh_token")
+-		form.Set("refresh_token", to.secret)
+-	} else {
+-		form.Set("grant_type", "password")
+-		form.Set("username", to.username)
+-		form.Set("password", to.secret)
+-	}
+-
+-	req, err := http.NewRequest("POST", to.realm, strings.NewReader(form.Encode()))
+-	if err != nil {
+-		return "", err
+-	}
+-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
+-	if ah.header != nil {
+-		for k, v := range ah.header {
+-			req.Header[k] = append(req.Header[k], v...)
+-		}
+-	}
+-
+-	resp, err := ctxhttp.Do(ctx, ah.client, req)
+-	if err != nil {
+-		return "", err
+-	}
+-	defer resp.Body.Close()
+-
+-	// Registries without support for POST may return 404 for POST /v2/token.
+-	// As of September 2017, GCR is known to return 404.
+-	// As of February 2018, JFrog Artifactory is known to return 401.
+-	if (resp.StatusCode == 405 && to.username != "") || resp.StatusCode == 404 || resp.StatusCode == 401 {
+-		return ah.fetchToken(ctx, to)
+-	} else if resp.StatusCode < 200 || resp.StatusCode >= 400 {
+-		b, _ := ioutil.ReadAll(io.LimitReader(resp.Body, 64000)) // 64KB
+-		log.G(ctx).WithFields(logrus.Fields{
+-			"status": resp.Status,
+-			"body":   string(b),
+-		}).Debugf("token request failed")
+-		// TODO: handle error body and write debug output
+-		return "", errors.Errorf("unexpected status: %s", resp.Status)
+-	}
+-
+-	decoder := json.NewDecoder(resp.Body)
+-
+-	var tr postTokenResponse
+-	if err = decoder.Decode(&tr); err != nil {
+-		return "", fmt.Errorf("unable to decode token response: %s", err)
+-	}
+-
+-	return tr.AccessToken, nil
+-}
+-
+-type getTokenResponse struct {
+-	Token        string    `json:"token"`
+-	AccessToken  string    `json:"access_token"`
+-	ExpiresIn    int       `json:"expires_in"`
+-	IssuedAt     time.Time `json:"issued_at"`
+-	RefreshToken string    `json:"refresh_token"`
+-}
+-
+-// fetchToken fetches a token using a GET request
+-func (ah *authHandler) fetchToken(ctx context.Context, to tokenOptions) (string, error) {
+-	req, err := http.NewRequest("GET", to.realm, nil)
+-	if err != nil {
+-		return "", err
+-	}
+-
+-	if ah.header != nil {
+-		for k, v := range ah.header {
+-			req.Header[k] = append(req.Header[k], v...)
++		// TODO: Allow setting client_id
++		resp, err := auth.FetchTokenWithOAuth(ctx, ah.client, ah.header, "containerd-client", to)
++		if err != nil {
++			var errStatus remoteerrors.ErrUnexpectedStatus
++			if errors.As(err, &errStatus) {
++				// Registries without support for POST may return 404 for POST /v2/token.
++				// As of September 2017, GCR is known to return 404.
++				// As of February 2018, JFrog Artifactory is known to return 401.
++				if (errStatus.StatusCode == 405 && to.Username != "") || errStatus.StatusCode == 404 || errStatus.StatusCode == 401 {
++					resp, err := auth.FetchToken(ctx, ah.client, ah.header, to)
++					if err != nil {
++						return "", err
++					}
++					return resp.Token, nil
++				}
++				log.G(ctx).WithFields(logrus.Fields{
++					"status": errStatus.Status,
++					"body":   string(errStatus.Body),
++				}).Debugf("token request failed")
++			}
++			return "", err
+ 		}
++		return resp.AccessToken, nil
+ 	}
+-
+-	reqParams := req.URL.Query()
+-
+-	if to.service != "" {
+-		reqParams.Add("service", to.service)
+-	}
+-
+-	for _, scope := range to.scopes {
+-		reqParams.Add("scope", scope)
+-	}
+-
+-	if to.secret != "" {
+-		req.SetBasicAuth(to.username, to.secret)
+-	}
+-
+-	req.URL.RawQuery = reqParams.Encode()
+-
+-	resp, err := ctxhttp.Do(ctx, ah.client, req)
++	// do request anonymously
++	resp, err := auth.FetchToken(ctx, ah.client, ah.header, to)
+ 	if err != nil {
+-		return "", err
+-	}
+-	defer resp.Body.Close()
+-
+-	if resp.StatusCode < 200 || resp.StatusCode >= 400 {
+-		// TODO: handle error body and write debug output
+-		return "", errors.Errorf("unexpected status: %s", resp.Status)
++		return "", errors.Wrap(err, "failed to fetch anonymous token")
+ 	}
+-
+-	decoder := json.NewDecoder(resp.Body)
+-
+-	var tr getTokenResponse
+-	if err = decoder.Decode(&tr); err != nil {
+-		return "", fmt.Errorf("unable to decode token response: %s", err)
+-	}
+-
+-	// `access_token` is equivalent to `token` and if both are specified
+-	// the choice is undefined.  Canonicalize `access_token` by sticking
+-	// things in `token`.
+-	if tr.AccessToken != "" {
+-		tr.Token = tr.AccessToken
+-	}
+-
+-	if tr.Token == "" {
+-		return "", ErrNoToken
+-	}
+-
+-	return tr.Token, nil
++	return resp.Token, nil
+ }
+ 
+-func invalidAuthorization(c challenge, responses []*http.Response) error {
+-	errStr := c.parameters["error"]
++func invalidAuthorization(c auth.Challenge, responses []*http.Response) error {
++	errStr := c.Parameters["error"]
+ 	if errStr == "" {
+ 		return nil
+ 	}
+diff --git a/remotes/docker/fetcher.go b/remotes/docker/fetcher.go
+index cd0168b..9d6708d 100644
+--- a/remotes/docker/fetcher.go
++++ b/remotes/docker/fetcher.go
+@@ -45,7 +45,7 @@ func (r dockerFetcher) Fetch(ctx context.Context, desc ocispec.Descriptor) (io.R
+ 		return nil, errors.Wrap(errdefs.ErrNotFound, "no pull hosts")
+ 	}
+ 
+-	ctx, err := contextWithRepositoryScope(ctx, r.refspec, false)
++	ctx, err := ContextWithRepositoryScope(ctx, r.refspec, false)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+diff --git a/remotes/docker/httpreadseeker.go b/remotes/docker/httpreadseeker.go
+index 9175b6a..704eba4 100644
+--- a/remotes/docker/httpreadseeker.go
++++ b/remotes/docker/httpreadseeker.go
+@@ -121,7 +121,7 @@ func (hrs *httpReadSeeker) reader() (io.Reader, error) {
+ 
+ 		rc, err := hrs.open(hrs.offset)
+ 		if err != nil {
+-			return nil, errors.Wrapf(err, "httpReaderSeeker: failed open")
++			return nil, errors.Wrapf(err, "httpReadSeeker: failed open")
+ 		}
+ 
+ 		if hrs.rc != nil {
+diff --git a/remotes/docker/pusher.go b/remotes/docker/pusher.go
+index 98ea515..0a69c8c 100644
+--- a/remotes/docker/pusher.go
++++ b/remotes/docker/pusher.go
+@@ -30,6 +30,7 @@ import (
+ 	"github.com/containerd/containerd/images"
+ 	"github.com/containerd/containerd/log"
+ 	"github.com/containerd/containerd/remotes"
++	remoteserrors "github.com/containerd/containerd/remotes/errors"
+ 	digest "github.com/opencontainers/go-digest"
+ 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+ 	"github.com/pkg/errors"
+@@ -44,7 +45,7 @@ type dockerPusher struct {
+ }
+ 
+ func (p dockerPusher) Push(ctx context.Context, desc ocispec.Descriptor) (content.Writer, error) {
+-	ctx, err := contextWithRepositoryScope(ctx, p.refspec, true)
++	ctx, err := ContextWithRepositoryScope(ctx, p.refspec, true)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -112,8 +113,9 @@ func (p dockerPusher) Push(ctx context.Context, desc ocispec.Descriptor) (conten
+ 				return nil, errors.Wrapf(errdefs.ErrAlreadyExists, "content %v on remote", desc.Digest)
+ 			}
+ 		} else if resp.StatusCode != http.StatusNotFound {
+-			// TODO: log error
+-			return nil, errors.Errorf("unexpected response: %s", resp.Status)
++			err := remoteserrors.NewUnexpectedStatusErr(resp)
++			log.G(ctx).WithField("resp", resp).WithField("body", string(err.(remoteserrors.ErrUnexpectedStatus).Body)).Debug("unexpected response")
++			return nil, err
+ 		}
+ 	}
+ 
+@@ -128,7 +130,7 @@ func (p dockerPusher) Push(ctx context.Context, desc ocispec.Descriptor) (conten
+ 		var resp *http.Response
+ 		if fromRepo := selectRepositoryMountCandidate(p.refspec, desc.Annotations); fromRepo != "" {
+ 			preq := requestWithMountFrom(req, desc.Digest.String(), fromRepo)
+-			pctx := contextWithAppendPullRepositoryScope(ctx, fromRepo)
++			pctx := ContextWithAppendPullRepositoryScope(ctx, fromRepo)
+ 
+ 			// NOTE: the fromRepo might be private repo and
+ 			// auth service still can grant token without error.
+@@ -166,8 +168,9 @@ func (p dockerPusher) Push(ctx context.Context, desc ocispec.Descriptor) (conten
+ 			})
+ 			return nil, errors.Wrapf(errdefs.ErrAlreadyExists, "content %v on remote", desc.Digest)
+ 		default:
+-			// TODO: log error
+-			return nil, errors.Errorf("unexpected response: %s", resp.Status)
++			err := remoteserrors.NewUnexpectedStatusErr(resp)
++			log.G(ctx).WithField("resp", resp).WithField("body", string(err.(remoteserrors.ErrUnexpectedStatus).Body)).Debug("unexpected response")
++			return nil, err
+ 		}
+ 
+ 		var (
+@@ -219,7 +222,7 @@ func (p dockerPusher) Push(ctx context.Context, desc ocispec.Descriptor) (conten
+ 	// TODO: Support chunked upload
+ 
+ 	pr, pw := io.Pipe()
+-	respC := make(chan *http.Response, 1)
++	respC := make(chan response, 1)
+ 	body := ioutil.NopCloser(pr)
+ 
+ 	req.body = func() (io.ReadCloser, error) {
+@@ -237,6 +240,7 @@ func (p dockerPusher) Push(ctx context.Context, desc ocispec.Descriptor) (conten
+ 		defer close(respC)
+ 		resp, err := req.do(ctx)
+ 		if err != nil {
++			respC <- response{err: err}
+ 			pr.CloseWithError(err)
+ 			return
+ 		}
+@@ -244,10 +248,11 @@ func (p dockerPusher) Push(ctx context.Context, desc ocispec.Descriptor) (conten
+ 		switch resp.StatusCode {
+ 		case http.StatusOK, http.StatusCreated, http.StatusNoContent:
+ 		default:
+-			// TODO: log error
+-			pr.CloseWithError(errors.Errorf("unexpected response: %s", resp.Status))
++			err := remoteserrors.NewUnexpectedStatusErr(resp)
++			log.G(ctx).WithField("resp", resp).WithField("body", string(err.(remoteserrors.ErrUnexpectedStatus).Body)).Debug("unexpected response")
++			pr.CloseWithError(err)
+ 		}
+-		respC <- resp
++		respC <- response{Response: resp}
+ 	}()
+ 
+ 	return &pushWriter{
+@@ -280,12 +285,17 @@ func getManifestPath(object string, dgst digest.Digest) []string {
+ 	return []string{"manifests", object}
+ }
+ 
++type response struct {
++	*http.Response
++	err error
++}
++
+ type pushWriter struct {
+ 	base *dockerBase
+ 	ref  string
+ 
+ 	pipe       *io.PipeWriter
+-	responseC  <-chan *http.Response
++	responseC  <-chan response
+ 	isManifest bool
+ 
+ 	expected digest.Digest
+@@ -335,8 +345,8 @@ func (pw *pushWriter) Commit(ctx context.Context, size int64, expected digest.Di
+ 
+ 	// TODO: timeout waiting for response
+ 	resp := <-pw.responseC
+-	if resp == nil {
+-		return errors.New("no response")
++	if resp.err != nil {
++		return resp.err
+ 	}
+ 
+ 	// 201 is specified return status, some registries return
+diff --git a/remotes/docker/resolver.go b/remotes/docker/resolver.go
+index 53e42ec..5258d71 100644
+--- a/remotes/docker/resolver.go
++++ b/remotes/docker/resolver.go
+@@ -41,10 +41,6 @@ import (
+ )
+ 
+ var (
+-	// ErrNoToken is returned if a request is successful but the body does not
+-	// contain an authorization token.
+-	ErrNoToken = errors.New("authorization server did not include a token in the response")
+-
+ 	// ErrInvalidAuthorization is used when credentials are passed to a server but
+ 	// those credentials are rejected.
+ 	ErrInvalidAuthorization = errors.New("authorization failed")
+@@ -267,7 +263,7 @@ func (r *dockerResolver) Resolve(ctx context.Context, ref string) (string, ocisp
+ 		return "", ocispec.Descriptor{}, errors.Wrap(errdefs.ErrNotFound, "no resolve hosts")
+ 	}
+ 
+-	ctx, err = contextWithRepositoryScope(ctx, refspec, false)
++	ctx, err = ContextWithRepositoryScope(ctx, refspec, false)
+ 	if err != nil {
+ 		return "", ocispec.Descriptor{}, err
+ 	}
+diff --git a/remotes/docker/scope.go b/remotes/docker/scope.go
+index c8541c4..fe57f02 100644
+--- a/remotes/docker/scope.go
++++ b/remotes/docker/scope.go
+@@ -26,10 +26,10 @@ import (
+ 	"github.com/containerd/containerd/reference"
+ )
+ 
+-// repositoryScope returns a repository scope string such as "repository:foo/bar:pull"
++// RepositoryScope returns a repository scope string such as "repository:foo/bar:pull"
+ // for "host/foo/bar:baz".
+ // When push is true, both pull and push are added to the scope.
+-func repositoryScope(refspec reference.Spec, push bool) (string, error) {
++func RepositoryScope(refspec reference.Spec, push bool) (string, error) {
+ 	u, err := url.Parse("dummy://" + refspec.Locator)
+ 	if err != nil {
+ 		return "", err
+@@ -45,9 +45,9 @@ func repositoryScope(refspec reference.Spec, push bool) (string, error) {
+ // value: []string (e.g. {"registry:foo/bar:pull"})
+ type tokenScopesKey struct{}
+ 
+-// contextWithRepositoryScope returns a context with tokenScopesKey{} and the repository scope value.
+-func contextWithRepositoryScope(ctx context.Context, refspec reference.Spec, push bool) (context.Context, error) {
+-	s, err := repositoryScope(refspec, push)
++// ContextWithRepositoryScope returns a context with tokenScopesKey{} and the repository scope value.
++func ContextWithRepositoryScope(ctx context.Context, refspec reference.Spec, push bool) (context.Context, error) {
++	s, err := RepositoryScope(refspec, push)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -66,9 +66,9 @@ func WithScope(ctx context.Context, scope string) context.Context {
+ 	return context.WithValue(ctx, tokenScopesKey{}, scopes)
+ }
+ 
+-// contextWithAppendPullRepositoryScope is used to append repository pull
++// ContextWithAppendPullRepositoryScope is used to append repository pull
+ // scope into existing scopes indexed by the tokenScopesKey{}.
+-func contextWithAppendPullRepositoryScope(ctx context.Context, repo string) context.Context {
++func ContextWithAppendPullRepositoryScope(ctx context.Context, repo string) context.Context {
+ 	return WithScope(ctx, fmt.Sprintf("repository:%s:pull", repo))
+ }
+ 
+diff --git a/remotes/docker/scope_test.go b/remotes/docker/scope_test.go
+index ea6ade9..a122978 100644
+--- a/remotes/docker/scope_test.go
++++ b/remotes/docker/scope_test.go
+@@ -50,7 +50,7 @@ func TestRepositoryScope(t *testing.T) {
+ 	}
+ 	for _, x := range testCases {
+ 		t.Run(x.refspec.String(), func(t *testing.T) {
+-			actual, err := repositoryScope(x.refspec, x.push)
++			actual, err := RepositoryScope(x.refspec, x.push)
+ 			assert.NilError(t, err)
+ 			assert.Equal(t, x.expected, actual)
+ 		})
+@@ -99,7 +99,7 @@ func TestGetTokenScopes(t *testing.T) {
+ func TestCustomScope(t *testing.T) {
+ 	scope := "whatever:foo/bar:pull"
+ 	ctx := WithScope(context.Background(), scope)
+-	ctx = contextWithAppendPullRepositoryScope(ctx, "foo/bar")
++	ctx = ContextWithAppendPullRepositoryScope(ctx, "foo/bar")
+ 
+ 	scopes := GetTokenScopes(ctx, []string{})
+ 	assert.Assert(t, cmp.Len(scopes, 2))
+diff --git a/remotes/errors/errors.go b/remotes/errors/errors.go
+new file mode 100644
+index 0000000..e58e4af
+--- /dev/null
++++ b/remotes/errors/errors.go
+@@ -0,0 +1,46 @@
++/*
++   Copyright The containerd Authors.
++
++   Licensed under the Apache License, Version 2.0 (the "License");
++   you may not use this file except in compliance with the License.
++   You may obtain a copy of the License at
++
++       http://www.apache.org/licenses/LICENSE-2.0
++
++   Unless required by applicable law or agreed to in writing, software
++   distributed under the License is distributed on an "AS IS" BASIS,
++   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++   See the License for the specific language governing permissions and
++   limitations under the License.
++*/
++
++package errors
++
++import (
++	"fmt"
++	"io"
++	"io/ioutil"
++	"net/http"
++)
++
++var _ error = ErrUnexpectedStatus{}
++
++// ErrUnexpectedStatus is returned if a registry API request returned with unexpected HTTP status
++type ErrUnexpectedStatus struct {
++	Status     string
++	StatusCode int
++	Body       []byte
++}
++
++func (e ErrUnexpectedStatus) Error() string {
++	return fmt.Sprintf("unexpected status: %s", e.Status)
++}
++
++// NewUnexpectedStatusErr creates an ErrUnexpectedStatus from HTTP response
++func NewUnexpectedStatusErr(resp *http.Response) error {
++	var b []byte
++	if resp.Body != nil {
++		b, _ = ioutil.ReadAll(io.LimitReader(resp.Body, 64000)) // 64KB
++	}
++	return ErrUnexpectedStatus{Status: resp.Status, StatusCode: resp.StatusCode, Body: b}
++}
