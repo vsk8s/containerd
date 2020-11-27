@@ -1,3 +1,11 @@
+containerd (1.4.2~ds1-2) experimental; urgency=medium
+
+  * Backport github.com/containerd/containerd/remotes package.
+    Update to f601887a3cafeef462d72add63693d9941889bd7
+    For reason in https://bugs.debian.org/974857#36
+
+ -- Shengjing Zhu <zhsj@debian.org>  Sat, 28 Nov 2020 00:19:03 +0800
+
 containerd (1.4.2~ds1-1) unstable; urgency=medium
 
   * Update uscan watch file version to 4
