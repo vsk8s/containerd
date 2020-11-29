@@ -13,11 +13,6 @@ CRI_FILE   += cmd/containerd/builtins_cri.go vendor/github.com/containerd/cri
 CRI_FILE   += vendor/k8s.io vendor/github.com/docker/docker
 CRI_FILE   += vendor/github.com/containerd/imgcrypt
 
-ifneq (,$(findstring gccgo, $(shell go version)))
-TAGS     += no_cri
-EXCLUDES += $(CRI_FILE)
-endif
-
 # riscv64 doesn't support cgo
 # https://github.com/golang/go/issues/36641
 ifeq (0, $(shell GOCACHE=$(CURDIR)/_build/go-build go env CGO_ENABLED))
