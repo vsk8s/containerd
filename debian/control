@@ -94,6 +94,7 @@ Description: open and reliable container runtime
 
 Package: golang-github-containerd-containerd-dev
 Architecture: all
+Section: golang
 Depends: golang-github-burntsushi-toml-dev,
          golang-github-containerd-btrfs-dev (>= 0.0~git20200117.1539353~),
          golang-github-containerd-cgroups-dev (>= 0.0~git20200817.7a3c009~),
