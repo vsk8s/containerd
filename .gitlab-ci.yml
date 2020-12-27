@@ -1,8 +1,8 @@
-image: soseth/debian-ci-base:buster
-
 variables:
   DISTRIBUTION_VER: "buster"
   CI_APT_PREFIX: "k8s-1.20"
+
+image: docker.git.sos.ethz.ch/isg/debian-ci-base-int:$DISTRIBUTION_VER
 
 stages:
   - build
@@ -12,7 +12,8 @@ build:
   stage: build
   before_script:
     - apt update
-    - apt install -y go-md2man golang-any libbtrfs-dev libseccomp-dev
+    - apt install -y go-md2man golang-any libbtrfs-dev libseccomp-dev golang-1.15
+    - apt install -y -t buster-backports debhelper-compat
   script:
     - dpkg-buildpackage -b -us -uc
     - mv ../*.deb . # GitLab can't copy from the parent directory...
