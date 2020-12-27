@@ -19,7 +19,7 @@ build:
     - export GOPATH=/root/go
   script:
     - go env
-    - dpkg-buildpackage -b -us -uc
+    - DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -b -us -uc
     - mv ../*.deb . # GitLab can't copy from the parent directory...
   artifacts:
     name: packets
