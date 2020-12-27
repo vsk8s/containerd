@@ -14,7 +14,10 @@ build:
     - apt update
     - apt install -y go-md2man golang-any libbtrfs-dev libseccomp-dev golang-1.15
     - apt install -y -t buster-backports debhelper-compat
+    - export PATH=/usr/lib/go-1.15/bin:$PATH 
+    - export GOROOT=/usr/share/go-1.15
   script:
+    - go env
     - dpkg-buildpackage -b -us -uc
     - mv ../*.deb . # GitLab can't copy from the parent directory...
   artifacts:
