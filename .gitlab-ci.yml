@@ -16,6 +16,7 @@ build:
     - apt install -y -t buster-backports debhelper-compat
     - export PATH=/usr/lib/go-1.15/bin:$PATH 
     - export GOROOT=/usr/lib/go-1.15
+    - export GOPATH=/root/go
   script:
     - go env
     - dpkg-buildpackage -b -us -uc
