@@ -24,6 +24,8 @@ export DH_GOLANG_GO_GENERATE := 1
 export DH_GOLANG_EXCLUDES    := $(EXCLUDES)
 export CGO_CFLAGS            := $(CFLAGS)
 export CGO_CPPFLAGS          := $(CPPFLAGS)
+export GO111MODULE=on
+export GOPROXY=
 
 %:
 	dh $@ --buildsystem=golang --with=golang --builddirectory=_build
@@ -34,6 +36,8 @@ override_dh_auto_configure:
 	echo "package containerd" >> $(GEN_MAN)
 	echo "//go:generate go run cmd/gen-manpages/main.go containerd.8 $(CURDIR)/man" >> $(GEN_MAN)
 	echo "//go:generate go run cmd/gen-manpages/main.go ctr.8 $(CURDIR)/man" >> $(GEN_MAN)
+	go run cmd/gen-manpages/main.go containerd.8 $(CURDIR)/man
+	go run cmd/gen-manpages/main.go ctr.8 $(CURDIR)/man
 
 override_dh_auto_build:
 	dh_auto_build -- -tags '$(TAGS)' -ldflags '$(GO_LDFLAGS)'
@@ -44,10 +48,10 @@ override_dh_auto_build:
 
 	sed 's|/usr/local/bin|/usr/bin|' containerd.service > debian/containerd.service
 	mkdir -vp debian/bash-completion
-	install -m644 -T /usr/share/gocode/src/github.com/urfave/cli/autocomplete/bash_autocomplete \
+	install -m644 -T ${GOPATH}/pkg/mod/github.com/urfave/cli*/autocomplete/bash_autocomplete \
 		debian/bash-completion/ctr
 	mkdir -vp debian/zsh-completion
-	sed 's|$$PROG|ctr|g' /usr/share/gocode/src/github.com/urfave/cli/autocomplete/zsh_autocomplete > \
+	sed 's|$$PROG|ctr|g' ${GOPATH}/pkg/mod/github.com/urfave/cli*/autocomplete/zsh_autocomplete > \
 		debian/zsh-completion/_ctr
 
 override_dh_auto_test:
