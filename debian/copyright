@@ -36,17 +36,23 @@ Files-Excluded:
   vendor/github.com/godbus/dbus
   vendor/github.com/gogo/googleapis
   vendor/github.com/gogo/protobuf
+  vendor/github.com/golang/groupcache
+  vendor/github.com/klauspost/compress
+  vendor/github.com/moby/sys
+  vendor/github.com/pmezard/go-difflib
+  vendor/github.com/stretchr/testify
+  vendor/golang.org/x/xerrors
+  vendor/google.golang.org/appengine
+  vendor/gopkg.in/yaml.v3
   vendor/github.com/golang/protobuf
   vendor/github.com/google/go-cmp
   vendor/github.com/google/gofuzz
   vendor/github.com/google/uuid
   vendor/github.com/grpc-ecosystem/go-grpc-prometheus
   vendor/github.com/hashicorp/errwrap
-  vendor/github.com/hashicorp/golang-lru
   vendor/github.com/hashicorp/go-multierror
   vendor/github.com/imdario/mergo
   vendor/github.com/json-iterator/go
-  vendor/github.com/konsorten/go-windows-terminal-sequences
   vendor/github.com/matttproud/golang_protobuf_extensions
   vendor/github.com/Microsoft/go-winio
   vendor/github.com/Microsoft/hcsshim
@@ -89,11 +95,13 @@ Files-Excluded:
   ~~vendor/k8s.io/apimachinery
   ~~vendor/k8s.io/apiserver
   ~~vendor/k8s.io/client-go
+  ~~vendor/k8s.io/component-base
   ~~vendor/k8s.io/cri-api
   ~~vendor/k8s.io/klog
   ~~vendor/k8s.io/utils
   vendor/sigs.k8s.io/yaml
   vendor/sigs.k8s.io/structured-merge-diff
+  vendor/modules.txt
 
 Files: *
 Copyright: 2013-2016 Docker, Inc.
