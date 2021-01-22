@@ -1,15 +1,15 @@
 From: Shengjing Zhu <zhsj@debian.org>
-Date: Tue, 19 May 2020 17:36:43 +0800
+Date: Sat, 23 Jan 2021 00:42:41 +0800
 Subject: disable runhcs option in cri config
 
 ---
- vendor/github.com/containerd/cri/pkg/server/helpers.go | 6 ------
- 1 file changed, 6 deletions(-)
+ pkg/cri/server/helpers.go | 3 ---
+ 1 file changed, 3 deletions(-)
 
-diff --git a/vendor/github.com/containerd/cri/pkg/server/helpers.go b/vendor/github.com/containerd/cri/pkg/server/helpers.go
-index 34da9a2..7f9b065 100644
---- a/vendor/github.com/containerd/cri/pkg/server/helpers.go
-+++ b/vendor/github.com/containerd/cri/pkg/server/helpers.go
+diff --git a/pkg/cri/server/helpers.go b/pkg/cri/server/helpers.go
+index 3514e68..5255bbb 100644
+--- a/pkg/cri/server/helpers.go
++++ b/pkg/cri/server/helpers.go
 @@ -24,7 +24,6 @@ import (
  	"strings"
  
@@ -18,17 +18,7 @@ index 34da9a2..7f9b065 100644
  	"github.com/containerd/containerd"
  	"github.com/containerd/containerd/containers"
  	"github.com/containerd/containerd/plugin"
-@@ -87,9 +86,6 @@ const (
- 
- 	// defaultIfName is the default network interface for the pods
- 	defaultIfName = "eth0"
--
--	// runtimeRunhcsV1 is the runtime type for runhcs.
--	runtimeRunhcsV1 = "io.containerd.runhcs.v1"
- )
- 
- // makeSandboxName generates sandbox name from sandbox metadata. The name
-@@ -325,8 +321,6 @@ func getRuntimeOptionsType(t string) interface{} {
+@@ -325,8 +324,6 @@ func getRuntimeOptionsType(t string) interface{} {
  		return &runcoptions.Options{}
  	case plugin.RuntimeLinuxV1:
  		return &runctypes.RuncOptions{}

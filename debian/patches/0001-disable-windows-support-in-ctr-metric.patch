@@ -7,7 +7,7 @@ Subject: disable windows support in ctr metric
  1 file changed, 55 deletions(-)
 
 diff --git a/cmd/ctr/commands/tasks/metrics.go b/cmd/ctr/commands/tasks/metrics.go
-index 3fd1493..8e92546 100644
+index a83e45e..e6a23cd 100644
 --- a/cmd/ctr/commands/tasks/metrics.go
 +++ b/cmd/ctr/commands/tasks/metrics.go
 @@ -25,7 +25,6 @@ import (
