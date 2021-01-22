@@ -3,7 +3,6 @@
 include /usr/share/dpkg/default.mk
 
 PKG        := github.com/containerd/containerd
-TAGS       := seccomp apparmor
 GO_LDFLAGS += -X $(PKG)/version.Version=$(DEB_VERSION_UPSTREAM)
 GO_LDFLAGS += -X $(PKG)/version.Revision=$(DEB_VERSION)
 GEN_MAN    := $(CURDIR)/_build/src/$(PKG)/gen_man.go
