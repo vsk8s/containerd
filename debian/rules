@@ -8,6 +8,7 @@ GO_LDFLAGS += -X $(PKG)/version.Revision=$(DEB_VERSION)
 GEN_MAN    := $(CURDIR)/_build/src/$(PKG)/gen_man.go
 EXCLUDES   += cmd/protoc-gen-gogoctrd cmd/gen-manpages cmd/containerd-stress
 EXCLUDES   += runtime/v2/example/cmd
+EXCLUDES   += integration
 CRI_FILE   += cmd/containerd/builtins_cri.go pkg/cri
 CRI_FILE   += vendor/k8s.io
 CRI_FILE   += vendor/github.com/containerd/imgcrypt
@@ -50,7 +51,8 @@ override_dh_auto_build:
 		debian/zsh-completion/_ctr
 
 override_dh_auto_test:
-	dh_auto_test -- -tags '$(TAGS)'
+	# pkg/cri/server tests needs permission in schroot
+	DH_GOLANG_EXCLUDES="$(EXCLUDES) pkg/cri/server" dh_auto_test -- -tags '$(TAGS)'
 
 override_dh_auto_install:
 	DH_GOLANG_EXCLUDES="$(EXCLUDES) $(CRI_FILE) gen_man.go" dh_auto_install
