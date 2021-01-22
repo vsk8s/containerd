@@ -20,10 +20,9 @@ TAGS     += no_btrfs
 EXCLUDES += snapshots/btrfs
 endif
 
-export DH_GOLANG_GO_GENERATE := 1
-export DH_GOLANG_EXCLUDES    := $(EXCLUDES)
-export CGO_CFLAGS            := $(CFLAGS)
-export CGO_CPPFLAGS          := $(CPPFLAGS)
+export DH_GOLANG_GO_GENERATE   := 1
+export DH_GOLANG_EXCLUDES      := $(EXCLUDES)
+export DH_GOLANG_INSTALL_EXTRA := ./pkg/seccomp/fixtures
 
 %:
 	dh $@ --buildsystem=golang --with=golang --builddirectory=_build
