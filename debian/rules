@@ -14,13 +14,6 @@ CRI_FILE   += vendor/k8s.io
 CRI_FILE   += vendor/github.com/containerd/imgcrypt
 CRI_FILE   += vendor/github.com/containerd/nri
 
-# riscv64 doesn't support cgo
-# https://github.com/golang/go/issues/36641
-ifeq (0, $(shell GOCACHE=$(CURDIR)/_build/go-build go env CGO_ENABLED))
-TAGS     += no_btrfs
-EXCLUDES += snapshots/btrfs
-endif
-
 export DH_GOLANG_GO_GENERATE   := 1
 export DH_GOLANG_EXCLUDES      := $(EXCLUDES)
 export DH_GOLANG_INSTALL_EXTRA := ./pkg/seccomp/fixtures
