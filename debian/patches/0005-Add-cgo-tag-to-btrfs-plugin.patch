@@ -1,0 +1,41 @@
+From: Shengjing Zhu <zhsj@debian.org>
+Date: Sat, 23 Jan 2021 01:26:42 +0800
+Subject: Add cgo tag to btrfs plugin
+
+Origin: backport, https://github.com/containerd/containerd/pull/4964
+---
+ cmd/containerd/builtins_btrfs_linux.go | 2 +-
+ snapshots/btrfs/btrfs.go               | 2 +-
+ snapshots/btrfs/btrfs_test.go          | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/cmd/containerd/builtins_btrfs_linux.go b/cmd/containerd/builtins_btrfs_linux.go
+index e145ba9..4d7d14c 100644
+--- a/cmd/containerd/builtins_btrfs_linux.go
++++ b/cmd/containerd/builtins_btrfs_linux.go
+@@ -1,4 +1,4 @@
+-// +build !no_btrfs
++// +build !no_btrfs,cgo
+ 
+ /*
+    Copyright The containerd Authors.
+diff --git a/snapshots/btrfs/btrfs.go b/snapshots/btrfs/btrfs.go
+index ea90853..eef883b 100644
+--- a/snapshots/btrfs/btrfs.go
++++ b/snapshots/btrfs/btrfs.go
+@@ -1,4 +1,4 @@
+-// +build linux,!no_btrfs
++// +build linux,!no_btrfs,cgo
+ 
+ /*
+    Copyright The containerd Authors.
+diff --git a/snapshots/btrfs/btrfs_test.go b/snapshots/btrfs/btrfs_test.go
+index ceff97a..0378940 100644
+--- a/snapshots/btrfs/btrfs_test.go
++++ b/snapshots/btrfs/btrfs_test.go
+@@ -1,4 +1,4 @@
+-// +build linux,!no_btrfs
++// +build linux,!no_btrfs,cgo
+ 
+ /*
+    Copyright The containerd Authors.
