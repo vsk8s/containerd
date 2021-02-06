@@ -34,9 +34,19 @@ func (c *criService) containerMounts(sandboxID string, config *runtime.Container
 	return nil
 }
 
-func (c *criService) containerSpec(id string, sandboxID string, sandboxPid uint32, netNSPath string, containerName string,
-	config *runtime.ContainerConfig, sandboxConfig *runtime.PodSandboxConfig, imageConfig *imagespec.ImageConfig,
-	extraMounts []*runtime.Mount, ociRuntime config.Runtime) (*runtimespec.Spec, error) {
+func (c *criService) containerSpec(
+	id string,
+	sandboxID string,
+	sandboxPid uint32,
+	netNSPath string,
+	containerName string,
+	imageName string,
+	config *runtime.ContainerConfig,
+	sandboxConfig *runtime.PodSandboxConfig,
+	imageConfig *imagespec.ImageConfig,
+	extraMounts []*runtime.Mount,
+	ociRuntime config.Runtime,
+) (*runtimespec.Spec, error) {
 	specOpts := []oci.SpecOpts{
 		customopts.WithProcessArgs(config, imageConfig),
 	}
@@ -106,7 +116,10 @@ func (c *criService) containerSpec(id string, sandboxID string, sandboxPid uint3
 	specOpts = append(specOpts,
 		customopts.WithAnnotation(annotations.ContainerType, annotations.ContainerTypeContainer),
 		customopts.WithAnnotation(annotations.SandboxID, sandboxID),
+		customopts.WithAnnotation(annotations.SandboxNamespace, sandboxConfig.GetMetadata().GetNamespace()),
+		customopts.WithAnnotation(annotations.SandboxName, sandboxConfig.GetMetadata().GetName()),
 		customopts.WithAnnotation(annotations.ContainerName, containerName),
+		customopts.WithAnnotation(annotations.ImageName, imageName),
 	)
 	return c.runtimeSpec(id, ociRuntime.BaseRuntimeSpec, specOpts...)
 }

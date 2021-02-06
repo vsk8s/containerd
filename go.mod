@@ -29,7 +29,7 @@ require (
 	github.com/emicklei/go-restful v2.9.5+incompatible
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/gogo/googleapis v1.4.0
-	github.com/gogo/protobuf v1.3.1
+	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.4.3
 	github.com/google/go-cmp v0.5.2
 	github.com/google/uuid v1.1.2
@@ -41,19 +41,19 @@ require (
 	github.com/moby/sys/symlink v0.1.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.0.1
-	github.com/opencontainers/runc v1.0.0-rc92
-	github.com/opencontainers/runtime-spec v1.0.3-0.20200728170252-4d89ac9fbff6
+	github.com/opencontainers/runc v1.0.0-rc93
+	github.com/opencontainers/runtime-spec v1.0.3-0.20200929063507-e6143ca7d51d
 	github.com/opencontainers/selinux v1.8.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
 	github.com/sirupsen/logrus v1.7.0
 	github.com/stretchr/testify v1.6.1
-	github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2
+	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tchap/go-patricia v2.2.6+incompatible
 	github.com/urfave/cli v1.22.2
 	go.etcd.io/bbolt v1.3.5
-	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
-	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
+	golang.org/x/net v0.0.0-20201224014010-6772e930b67b
+	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
 	golang.org/x/sys v0.0.0-20201202213521-69691e467435
 	google.golang.org/grpc v1.30.0
 	gotest.tools/v3 v3.0.2
