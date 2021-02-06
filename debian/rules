@@ -20,7 +20,7 @@ export DH_GOLANG_INSTALL_EXTRA := ./pkg/seccomp/fixtures
 	dh $@ --buildsystem=golang --with=golang --builddirectory=_build
 
 override_dh_auto_build:
-	dh_auto_build -- -tags '$(TAGS)' -ldflags '$(GO_LDFLAGS)'
+	dh_auto_build -- -ldflags '$(GO_LDFLAGS)'
 
 execute_after_dh_auto_build:
 	mkdir -p man
@@ -40,7 +40,7 @@ execute_after_dh_auto_build:
 
 override_dh_auto_test:
 	# pkg/cri/server tests needs permission in schroot
-	DH_GOLANG_EXCLUDES="$(EXCLUDES) pkg/cri/server" dh_auto_test -- -tags '$(TAGS)'
+	DH_GOLANG_EXCLUDES="$(EXCLUDES) pkg/cri/server" dh_auto_test
 
 override_dh_auto_install:
 	DH_GOLANG_EXCLUDES="$(EXCLUDES) $(CRI_FILE)" dh_auto_install

@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -ex
+
 systemctl status containerd
 
 dh_auto_configure -O--buildsystem=golang -O--builddirectory=_build
