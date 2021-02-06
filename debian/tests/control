@@ -1,0 +1,5 @@
+Tests: integration
+Depends: containerd,
+         lsof,
+         @builddeps@,
+Restrictions: allow-stderr, needs-root, needs-internet, isolation-container, flaky
