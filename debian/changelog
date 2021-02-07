@@ -1,3 +1,10 @@
+containerd (1.4.3~ds1-2) unstable; urgency=medium
+
+  * No longer need to mention docker-containerd in package description
+  * Run integration test in autopkgtest
+
+ -- Shengjing Zhu <zhsj@debian.org>  Mon, 08 Feb 2021 01:40:14 +0800
+
 containerd (1.4.3~ds1-1) unstable; urgency=medium
 
   * New upstream version 1.4.3~ds1
