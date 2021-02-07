@@ -4,8 +4,9 @@ Subject: backport github.com/containerd/containerd/remotes
 
 For building docker.io 20.10
 
-This whole director is replaced by commit
-f601887a3cafeef462d72add63693d9941889bd7
+This whole directory is replaced by commit
+
+cfa842c278694860a7e32917066f4a24978f80d0 v1.5.0-beta.1
 
 Forwarded: not-needed
 ---
@@ -13,14 +14,15 @@ Forwarded: not-needed
  remotes/docker/auth/fetch.go     | 202 +++++++++++++++++++++++++++
  remotes/docker/auth/parse.go     | 203 ++++++++++++++++++++++++++++
  remotes/docker/authorizer.go     | 285 ++++++++++-----------------------------
+ remotes/docker/errcode.go        |   2 +-
  remotes/docker/fetcher.go        |   2 +-
  remotes/docker/httpreadseeker.go |   2 +-
- remotes/docker/pusher.go         |  36 +++--
- remotes/docker/resolver.go       |   6 +-
+ remotes/docker/pusher.go         |  40 +++---
+ remotes/docker/resolver.go       |  52 ++++---
  remotes/docker/scope.go          |  14 +-
  remotes/docker/scope_test.go     |   4 +-
  remotes/errors/errors.go         |  46 +++++++
- 11 files changed, 554 insertions(+), 444 deletions(-)
+ 12 files changed, 579 insertions(+), 471 deletions(-)
  delete mode 100644 remotes/docker/auth.go
  create mode 100644 remotes/docker/auth/fetch.go
  create mode 100644 remotes/docker/auth/parse.go
@@ -232,7 +234,7 @@ index 70cfdea..0000000
 -}
 diff --git a/remotes/docker/auth/fetch.go b/remotes/docker/auth/fetch.go
 new file mode 100644
-index 0000000..f65c6be
+index 0000000..0d01c81
 --- /dev/null
 +++ b/remotes/docker/auth/fetch.go
 @@ -0,0 +1,202 @@
@@ -303,7 +305,7 @@ index 0000000..f65c6be
 +	return to, nil
 +}
 +
-+// TokenOptions are optios for requesting a token
++// TokenOptions are options for requesting a token
 +type TokenOptions struct {
 +	Realm    string
 +	Service  string
@@ -1042,6 +1044,19 @@ index 001423a..67e4aea 100644
  	if errStr == "" {
  		return nil
  	}
+diff --git a/remotes/docker/errcode.go b/remotes/docker/errcode.go
+index 7d1e54f..8c623bc 100644
+--- a/remotes/docker/errcode.go
++++ b/remotes/docker/errcode.go
+@@ -163,7 +163,7 @@ type ErrorDescriptor struct {
+ 	// keyed value when serializing api errors.
+ 	Value string
+ 
+-	// Message is a short, human readable decription of the error condition
++	// Message is a short, human readable description of the error condition
+ 	// included in API responses.
+ 	Message string
+ 
 diff --git a/remotes/docker/fetcher.go b/remotes/docker/fetcher.go
 index cd0168b..9d6708d 100644
 --- a/remotes/docker/fetcher.go
@@ -1069,7 +1084,7 @@ index 9175b6a..704eba4 100644
  
  		if hrs.rc != nil {
 diff --git a/remotes/docker/pusher.go b/remotes/docker/pusher.go
-index 98ea515..0a69c8c 100644
+index 98ea515..94a270c 100644
 --- a/remotes/docker/pusher.go
 +++ b/remotes/docker/pusher.go
 @@ -30,6 +30,7 @@ import (
@@ -1110,6 +1125,15 @@ index 98ea515..0a69c8c 100644
  
  			// NOTE: the fromRepo might be private repo and
  			// auth service still can grant token without error.
+@@ -136,7 +138,7 @@ func (p dockerPusher) Push(ctx context.Context, desc ocispec.Descriptor) (conten
+ 			//
+ 			// for the private repo, we should remove mount-from
+ 			// query and send the request again.
+-			resp, err = preq.do(pctx)
++			resp, err = preq.doWithRetries(pctx, nil)
+ 			if err != nil {
+ 				return nil, err
+ 			}
 @@ -166,8 +168,9 @@ func (p dockerPusher) Push(ctx context.Context, desc ocispec.Descriptor) (conten
  			})
  			return nil, errors.Wrapf(errdefs.ErrAlreadyExists, "content %v on remote", desc.Digest)
@@ -1131,9 +1155,12 @@ index 98ea515..0a69c8c 100644
  	body := ioutil.NopCloser(pr)
  
  	req.body = func() (io.ReadCloser, error) {
-@@ -237,6 +240,7 @@ func (p dockerPusher) Push(ctx context.Context, desc ocispec.Descriptor) (conten
+@@ -235,8 +238,9 @@ func (p dockerPusher) Push(ctx context.Context, desc ocispec.Descriptor) (conten
+ 
+ 	go func() {
  		defer close(respC)
- 		resp, err := req.do(ctx)
+-		resp, err := req.do(ctx)
++		resp, err := req.doWithRetries(ctx, nil)
  		if err != nil {
 +			respC <- response{err: err}
  			pr.CloseWithError(err)
@@ -1185,7 +1212,7 @@ index 98ea515..0a69c8c 100644
  
  	// 201 is specified return status, some registries return
 diff --git a/remotes/docker/resolver.go b/remotes/docker/resolver.go
-index 53e42ec..5258d71 100644
+index 53e42ec..3481c51 100644
 --- a/remotes/docker/resolver.go
 +++ b/remotes/docker/resolver.go
 @@ -41,10 +41,6 @@ import (
@@ -1199,7 +1226,30 @@ index 53e42ec..5258d71 100644
  	// ErrInvalidAuthorization is used when credentials are passed to a server but
  	// those credentials are rejected.
  	ErrInvalidAuthorization = errors.New("authorization failed")
-@@ -267,7 +263,7 @@ func (r *dockerResolver) Resolve(ctx context.Context, ref string) (string, ocisp
+@@ -223,20 +219,15 @@ func (r *countingReader) Read(p []byte) (int, error) {
+ var _ remotes.Resolver = &dockerResolver{}
+ 
+ func (r *dockerResolver) Resolve(ctx context.Context, ref string) (string, ocispec.Descriptor, error) {
+-	refspec, err := reference.Parse(ref)
++	base, err := r.resolveDockerBase(ref)
+ 	if err != nil {
+ 		return "", ocispec.Descriptor{}, err
+ 	}
+-
++	refspec := base.refspec
+ 	if refspec.Object == "" {
+ 		return "", ocispec.Descriptor{}, reference.ErrObjectRequired
+ 	}
+ 
+-	base, err := r.base(refspec)
+-	if err != nil {
+-		return "", ocispec.Descriptor{}, err
+-	}
+-
+ 	var (
+ 		lastErr error
+ 		paths   [][]string
+@@ -267,7 +258,7 @@ func (r *dockerResolver) Resolve(ctx context.Context, ref string) (string, ocisp
  		return "", ocispec.Descriptor{}, errors.Wrap(errdefs.ErrNotFound, "no resolve hosts")
  	}
  
@@ -1208,6 +1258,82 @@ index 53e42ec..5258d71 100644
  	if err != nil {
  		return "", ocispec.Descriptor{}, err
  	}
+@@ -391,12 +382,7 @@ func (r *dockerResolver) Resolve(ctx context.Context, ref string) (string, ocisp
+ }
+ 
+ func (r *dockerResolver) Fetcher(ctx context.Context, ref string) (remotes.Fetcher, error) {
+-	refspec, err := reference.Parse(ref)
+-	if err != nil {
+-		return nil, err
+-	}
+-
+-	base, err := r.base(refspec)
++	base, err := r.resolveDockerBase(ref)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -407,23 +393,27 @@ func (r *dockerResolver) Fetcher(ctx context.Context, ref string) (remotes.Fetch
+ }
+ 
+ func (r *dockerResolver) Pusher(ctx context.Context, ref string) (remotes.Pusher, error) {
+-	refspec, err := reference.Parse(ref)
+-	if err != nil {
+-		return nil, err
+-	}
+-
+-	base, err := r.base(refspec)
++	base, err := r.resolveDockerBase(ref)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+ 
+ 	return dockerPusher{
+ 		dockerBase: base,
+-		object:     refspec.Object,
++		object:     base.refspec.Object,
+ 		tracker:    r.tracker,
+ 	}, nil
+ }
+ 
++func (r *dockerResolver) resolveDockerBase(ref string) (*dockerBase, error) {
++	refspec, err := reference.Parse(ref)
++	if err != nil {
++		return nil, err
++	}
++
++	return r.base(refspec)
++}
++
+ type dockerBase struct {
+ 	refspec    reference.Spec
+ 	repository string
+@@ -455,10 +445,11 @@ func (r *dockerBase) filterHosts(caps HostCapabilities) (hosts []RegistryHost) {
+ }
+ 
+ func (r *dockerBase) request(host RegistryHost, method string, ps ...string) *request {
+-	header := http.Header{}
+-	for key, value := range r.header {
+-		header[key] = append(header[key], value...)
++	header := r.header.Clone()
++	if header == nil {
++		header = http.Header{}
+ 	}
++
+ 	for key, value := range host.Header {
+ 		header[key] = append(header[key], value...)
+ 	}
+@@ -525,7 +516,10 @@ func (r *request) do(ctx context.Context) (*http.Response, error) {
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	req.Header = r.header
++	req.Header = http.Header{} // headers need to be copied to avoid concurrent map access
++	for k, v := range r.header {
++		req.Header[k] = v
++	}
+ 	if r.body != nil {
+ 		body, err := r.body()
+ 		if err != nil {
 diff --git a/remotes/docker/scope.go b/remotes/docker/scope.go
 index c8541c4..fe57f02 100644
 --- a/remotes/docker/scope.go
