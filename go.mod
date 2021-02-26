@@ -9,7 +9,7 @@ require (
 	github.com/Microsoft/hcsshim/test v0.0.0-20201218223536-d3e5debf77da
 	github.com/containerd/aufs v0.0.0-20200908144142-dab0cbea06f4
 	github.com/containerd/btrfs v0.0.0-20201111183144-404b9149801e
-	github.com/containerd/cgroups v0.0.0-20200824123100-0b889c03f102
+	github.com/containerd/cgroups v0.0.0-20210114181951-8a68de567b68
 	github.com/containerd/console v1.0.1
 	github.com/containerd/continuity v0.0.0-20201208142359-180525291bb7
 	github.com/containerd/fifo v0.0.0-20201026212402-0724c46b320c
@@ -48,7 +48,6 @@ require (
 	github.com/prometheus/client_golang v1.7.1
 	github.com/sirupsen/logrus v1.7.0
 	github.com/stretchr/testify v1.6.1
-	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tchap/go-patricia v2.2.6+incompatible
 	github.com/urfave/cli v1.22.2
 	go.etcd.io/bbolt v1.3.5
