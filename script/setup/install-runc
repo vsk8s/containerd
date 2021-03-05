@@ -16,24 +16,30 @@
 
 #
 # Builds and installs runc to /usr/local/go/bin based off
-# the commit defined in go.mod
+# the commit defined in vendor.conf
 #
 set -eu -o pipefail
 
 function install_runc() {
-	RUNC_COMMIT=$(grep opencontainers/runc "$GOPATH"/src/github.com/containerd/containerd/go.mod | awk '{print $2}')
+	RUNC_COMMIT=$(grep opencontainers/runc "$GOPATH"/src/github.com/containerd/containerd/vendor.conf | awk '{print $2}')
 
-	cd "$GOPATH"
 	go get -d github.com/opencontainers/runc
 	cd "$GOPATH"/src/github.com/opencontainers/runc
 	git checkout $RUNC_COMMIT
 	make BUILDTAGS='apparmor seccomp selinux' runc
-	make install
+
+	USESUDO=${USESUDO:-false}
+	if ${USESUDO}; then
+	  SUDO='sudo -E'
+	else
+	  SUDO=''
+	fi
+	${SUDO} make install
 }
 
 function install_crun() {
-	CRUN_VERSION=0.17
-	curl -o /usr/local/sbin/runc -L https://github.com/containers/crun/releases/download/${CRUN_VERSION}/crun-${CRUN_VERSION}-linux-$(go env GOARCH)
+	CRUN_VERSION=0.14
+	curl -o /usr/local/sbin/runc -L https://github.com/containers/crun/releases/download/${CRUN_VERSION}/crun-${CRUN_VERSION}-static-$(uname -m)
 	chmod +x /usr/local/sbin/runc
 }
 

@@ -72,6 +72,7 @@ func NewTask(ctx gocontext.Context, client *containerd.Client, container contain
 	stdinC := &stdinCloser{
 		stdin: os.Stdin,
 	}
+	stdio := cio.NewCreator(append([]cio.Opt{cio.WithStreams(stdinC, os.Stdout, os.Stderr)}, ioOpts...)...)
 	if checkpoint != "" {
 		im, err := client.GetImage(ctx, checkpoint)
 		if err != nil {
@@ -79,22 +80,22 @@ func NewTask(ctx gocontext.Context, client *containerd.Client, container contain
 		}
 		opts = append(opts, containerd.WithTaskCheckpoint(im))
 	}
-	var ioCreator cio.Creator
+	ioCreator := stdio
 	if con != nil {
-		if nullIO {
+		ioCreator = cio.NewCreator(append([]cio.Opt{cio.WithStreams(con, con, nil), cio.WithTerminal}, ioOpts...)...)
+	}
+	if nullIO {
+		if con != nil {
 			return nil, errors.New("tty and null-io cannot be used together")
 		}
-		ioCreator = cio.NewCreator(append([]cio.Opt{cio.WithStreams(con, con, nil), cio.WithTerminal}, ioOpts...)...)
-	} else if nullIO {
 		ioCreator = cio.NullIO
-	} else if logURI != "" {
+	}
+	if logURI != "" {
 		u, err := url.Parse(logURI)
 		if err != nil {
 			return nil, err
 		}
 		ioCreator = cio.LogURI(u)
-	} else {
-		ioCreator = cio.NewCreator(append([]cio.Opt{cio.WithStreams(stdinC, os.Stdout, os.Stderr)}, ioOpts...)...)
 	}
 	t, err := container.NewTask(ctx, ioCreator, opts...)
 	if err != nil {

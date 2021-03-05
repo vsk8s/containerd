@@ -50,12 +50,10 @@ func init() {
 		testImage = "mcr.microsoft.com/windows/nanoserver:1809"
 	case osversion.V19H1:
 		testImage = "mcr.microsoft.com/windows/nanoserver:1903"
-	case osversion.V19H2:
+	case 18363: // this isn't in osversion yet, but the image should be available
 		testImage = "mcr.microsoft.com/windows/nanoserver:1909"
-	case osversion.V20H1:
+	case 19041: // this isn't in osversion yet, but the image should be available
 		testImage = "mcr.microsoft.com/windows/nanoserver:2004"
-	case osversion.V20H2:
-		testImage = "mcr.microsoft.com/windows/nanoserver:20H2"
 	default:
 		fmt.Println("No test image defined for Windows build version:", b)
 		panic("No windows test image found for this Windows build")

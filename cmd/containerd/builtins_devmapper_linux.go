@@ -18,4 +18,4 @@
 
 package main
 
-import _ "github.com/containerd/containerd/snapshots/devmapper/plugin"
+import _ "github.com/containerd/containerd/snapshots/devmapper"

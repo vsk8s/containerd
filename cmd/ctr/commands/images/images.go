@@ -50,7 +50,6 @@ var Command = cli.Command{
 		removeCommand,
 		tagCommand,
 		setLabelsCommand,
-		convertCommand,
 	},
 }
 

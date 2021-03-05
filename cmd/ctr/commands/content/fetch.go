@@ -108,8 +108,6 @@ type FetchConfig struct {
 	Platforms []string
 	// Whether or not download all metadata
 	AllMetadata bool
-	// RemoteOpts is not used by ctr, but can be used by other CLI tools
-	RemoteOpts []containerd.RemoteOpt
 }
 
 // NewFetchConfig returns the default FetchConfig from cli flags
@@ -146,7 +144,7 @@ func NewFetchConfig(ctx context.Context, clicontext *cli.Context) (*FetchConfig,
 
 // Fetch loads all resources into the content store and returns the image
 func Fetch(ctx context.Context, client *containerd.Client, ref string, config *FetchConfig) (images.Image, error) {
-	ongoing := NewJobs(ref)
+	ongoing := newJobs(ref)
 
 	pctx, stopProgress := context.WithCancel(ctx)
 	progress := make(chan struct{})
@@ -154,14 +152,14 @@ func Fetch(ctx context.Context, client *containerd.Client, ref string, config *F
 	go func() {
 		if config.ProgressOutput != nil {
 			// no progress bar, because it hides some debug logs
-			ShowProgress(pctx, ongoing, client.ContentStore(), config.ProgressOutput)
+			showProgress(pctx, ongoing, client.ContentStore(), config.ProgressOutput)
 		}
 		close(progress)
 	}()
 
 	h := images.HandlerFunc(func(ctx context.Context, desc ocispec.Descriptor) ([]ocispec.Descriptor, error) {
 		if desc.MediaType != images.MediaTypeDockerSchema1Manifest {
-			ongoing.Add(desc)
+			ongoing.add(desc)
 		}
 		return nil, nil
 	})
@@ -174,7 +172,6 @@ func Fetch(ctx context.Context, client *containerd.Client, ref string, config *F
 		containerd.WithImageHandler(h),
 		containerd.WithSchema1Conversion,
 	}
-	opts = append(opts, config.RemoteOpts...)
 
 	if config.AllMetadata {
 		opts = append(opts, containerd.WithAllMetadata())
@@ -198,7 +195,7 @@ func Fetch(ctx context.Context, client *containerd.Client, ref string, config *F
 	return img, nil
 }
 
-func ShowProgress(ctx context.Context, ongoing *Jobs, cs content.Store, out io.Writer) {
+func showProgress(ctx context.Context, ongoing *jobs, cs content.Store, out io.Writer) {
 	var (
 		ticker   = time.NewTicker(100 * time.Millisecond)
 		fw       = progress.NewWriter(out)
@@ -217,7 +214,7 @@ outer:
 			tw := tabwriter.NewWriter(fw, 1, 8, 1, ' ', 0)
 
 			resolved := "resolved"
-			if !ongoing.IsResolved() {
+			if !ongoing.isResolved() {
 				resolved = "resolving"
 			}
 			statuses[ongoing.name] = StatusInfo{
@@ -248,7 +245,7 @@ outer:
 			}
 
 			// now, update the items in jobs that are not in active
-			for _, j := range ongoing.Jobs() {
+			for _, j := range ongoing.jobs() {
 				key := remotes.MakeRefKey(ctx, j)
 				keys = append(keys, key)
 				if _, ok := activeSeen[key]; ok {
@@ -315,12 +312,12 @@ outer:
 	}
 }
 
-// Jobs provides a way of identifying the download keys for a particular task
+// jobs provides a way of identifying the download keys for a particular task
 // encountering during the pull walk.
 //
 // This is very minimal and will probably be replaced with something more
 // featured.
-type Jobs struct {
+type jobs struct {
 	name     string
 	added    map[digest.Digest]struct{}
 	descs    []ocispec.Descriptor
@@ -328,14 +325,14 @@ type Jobs struct {
 	resolved bool
 }
 
-func NewJobs(name string) *Jobs {
-	return &Jobs{
+func newJobs(name string) *jobs {
+	return &jobs{
 		name:  name,
 		added: map[digest.Digest]struct{}{},
 	}
 }
 
-func (j *Jobs) Add(desc ocispec.Descriptor) {
+func (j *jobs) add(desc ocispec.Descriptor) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	j.resolved = true
@@ -347,7 +344,7 @@ func (j *Jobs) Add(desc ocispec.Descriptor) {
 	j.added[desc.Digest] = struct{}{}
 }
 
-func (j *Jobs) Jobs() []ocispec.Descriptor {
+func (j *jobs) jobs() []ocispec.Descriptor {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 
@@ -355,7 +352,7 @@ func (j *Jobs) Jobs() []ocispec.Descriptor {
 	return append(descs, j.descs...)
 }
 
-func (j *Jobs) IsResolved() bool {
+func (j *jobs) isResolved() bool {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return j.resolved
