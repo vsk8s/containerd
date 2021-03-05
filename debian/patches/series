@@ -1,5 +1,5 @@
 0001-Add-go.mod-file.patch
 0002-disable-runhcs-option-in-cri-config.patch
 0003-disable-windows-support-in-ctr-metric.patch
-0004-backport-github.com-containerd-containerd-remotes.patch
-0005-Add-cgo-tag-to-btrfs-plugin.patch
+0004-Add-cgo-tag-to-btrfs-plugin.patch
+0005-backport-github.com-containerd-containerd-remotes.patch

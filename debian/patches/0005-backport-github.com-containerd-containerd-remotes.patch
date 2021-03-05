@@ -1,12 +1,12 @@
 From: Shengjing Zhu <zhsj@debian.org>
-Date: Fri, 27 Nov 2020 23:57:23 +0800
-Subject: backport github.com/containerd/containerd/remotes
+Date: Fri, 5 Mar 2021 16:35:17 +0800
+Subject: backport_github=2Ecom/containerd/containerd/remotes
 
 For building docker.io 20.10
 
 This whole directory is replaced by commit
 
-cfa842c278694860a7e32917066f4a24978f80d0 v1.5.0-beta.1
+02334356d0774a5b194e67b5f1383fd2485ea67a v1.5.0-beta.3
 
 Forwarded: not-needed
 ---
@@ -17,12 +17,12 @@ Forwarded: not-needed
  remotes/docker/errcode.go        |   2 +-
  remotes/docker/fetcher.go        |   2 +-
  remotes/docker/httpreadseeker.go |   2 +-
- remotes/docker/pusher.go         |  40 +++---
- remotes/docker/resolver.go       |  52 ++++---
+ remotes/docker/pusher.go         |  36 +++--
+ remotes/docker/resolver.go       |  47 +++----
  remotes/docker/scope.go          |  14 +-
  remotes/docker/scope_test.go     |   4 +-
  remotes/errors/errors.go         |  46 +++++++
- 12 files changed, 579 insertions(+), 471 deletions(-)
+ 12 files changed, 573 insertions(+), 468 deletions(-)
  delete mode 100644 remotes/docker/auth.go
  create mode 100644 remotes/docker/auth/fetch.go
  create mode 100644 remotes/docker/auth/parse.go
@@ -1084,7 +1084,7 @@ index 9175b6a..704eba4 100644
  
  		if hrs.rc != nil {
 diff --git a/remotes/docker/pusher.go b/remotes/docker/pusher.go
-index 98ea515..94a270c 100644
+index d95e0c8..94a270c 100644
 --- a/remotes/docker/pusher.go
 +++ b/remotes/docker/pusher.go
 @@ -30,6 +30,7 @@ import (
@@ -1125,15 +1125,6 @@ index 98ea515..94a270c 100644
  
  			// NOTE: the fromRepo might be private repo and
  			// auth service still can grant token without error.
-@@ -136,7 +138,7 @@ func (p dockerPusher) Push(ctx context.Context, desc ocispec.Descriptor) (conten
- 			//
- 			// for the private repo, we should remove mount-from
- 			// query and send the request again.
--			resp, err = preq.do(pctx)
-+			resp, err = preq.doWithRetries(pctx, nil)
- 			if err != nil {
- 				return nil, err
- 			}
 @@ -166,8 +168,9 @@ func (p dockerPusher) Push(ctx context.Context, desc ocispec.Descriptor) (conten
  			})
  			return nil, errors.Wrapf(errdefs.ErrAlreadyExists, "content %v on remote", desc.Digest)
@@ -1155,12 +1146,9 @@ index 98ea515..94a270c 100644
  	body := ioutil.NopCloser(pr)
  
  	req.body = func() (io.ReadCloser, error) {
-@@ -235,8 +238,9 @@ func (p dockerPusher) Push(ctx context.Context, desc ocispec.Descriptor) (conten
- 
- 	go func() {
+@@ -237,6 +240,7 @@ func (p dockerPusher) Push(ctx context.Context, desc ocispec.Descriptor) (conten
  		defer close(respC)
--		resp, err := req.do(ctx)
-+		resp, err := req.doWithRetries(ctx, nil)
+ 		resp, err := req.doWithRetries(ctx, nil)
  		if err != nil {
 +			respC <- response{err: err}
  			pr.CloseWithError(err)
@@ -1212,7 +1200,7 @@ index 98ea515..94a270c 100644
  
  	// 201 is specified return status, some registries return
 diff --git a/remotes/docker/resolver.go b/remotes/docker/resolver.go
-index 53e42ec..3481c51 100644
+index f958218..3481c51 100644
 --- a/remotes/docker/resolver.go
 +++ b/remotes/docker/resolver.go
 @@ -41,10 +41,6 @@ import (
@@ -1322,18 +1310,6 @@ index 53e42ec..3481c51 100644
  	for key, value := range host.Header {
  		header[key] = append(header[key], value...)
  	}
-@@ -525,7 +516,10 @@ func (r *request) do(ctx context.Context) (*http.Response, error) {
- 	if err != nil {
- 		return nil, err
- 	}
--	req.Header = r.header
-+	req.Header = http.Header{} // headers need to be copied to avoid concurrent map access
-+	for k, v := range r.header {
-+		req.Header[k] = v
-+	}
- 	if r.body != nil {
- 		body, err := r.body()
- 		if err != nil {
 diff --git a/remotes/docker/scope.go b/remotes/docker/scope.go
 index c8541c4..fe57f02 100644
 --- a/remotes/docker/scope.go
