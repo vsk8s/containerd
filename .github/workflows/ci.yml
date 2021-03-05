@@ -20,13 +20,13 @@ jobs:
 
     strategy:
       matrix:
-        os: [ubuntu-18.04, macos-10.15] # TODO: pass linters on 'windows-2019'
+        go-version: [1.15.8]
+        os: [ubuntu-18.04, macos-10.15, windows-2019]
 
     steps:
-      - name: Install Go
-        uses: actions/setup-go@v1
+      - uses: actions/checkout@v2
         with:
-          go-version: '1.15.8'
+          path: src/github.com/containerd/containerd
 
       - name: Set env
         shell: bash
@@ -34,22 +34,11 @@ jobs:
           echo "GOPATH=${{ github.workspace }}" >> $GITHUB_ENV
           echo "${{ github.workspace }}/bin" >> $GITHUB_PATH
 
-      - name: Checkout
-        uses: actions/checkout@v2
+      - uses: golangci/golangci-lint-action@v2
         with:
-          path: src/github.com/containerd/containerd
-
-      - name: Install dev tools
-        env:
-          GO111MODULE: off
-        shell: bash
-        run: script/setup/install-dev-tools
-        working-directory: src/github.com/containerd/containerd
-
-      - name: Make check
-        shell: bash
-        run: make check
-        working-directory: src/github.com/containerd/containerd
+          version: v1.36.0
+          working-directory: src/github.com/containerd/containerd
+          args: --timeout=5m
 
   #
   # Project checks
@@ -77,27 +66,27 @@ jobs:
     runs-on: ubuntu-18.04
     timeout-minutes: 5
 
+    defaults:
+      run:
+        working-directory: src/github.com/containerd/containerd
+
     steps:
-      - name: Set up Go
-        uses: actions/setup-go@v1
+      - uses: actions/setup-go@v2
         with:
           go-version: '1.15.8'
+
+      - uses: actions/checkout@v2
+        with:
+          path: src/github.com/containerd/containerd
 
       - name: Set env
         shell: bash
         run: |
           echo "GOPATH=${{ github.workspace }}" >> $GITHUB_ENV
+          echo "GO111MODULE=off" >> $GITHUB_ENV
           echo "${{ github.workspace }}/bin" >> $GITHUB_PATH
 
-      - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          path: src/github.com/containerd/containerd
-
       - name: Install protobuf
-        env:
-          GO111MODULE: off
-        working-directory: src/github.com/containerd/containerd
         run: |
           sudo env PATH=$PATH GOPATH=$GOPATH script/setup/install-protobuf
           sudo chmod +x /usr/local/bin/protoc
@@ -105,19 +94,9 @@ jobs:
           sudo chmod -R og+r /usr/local/include/google/protobuf/
           protoc --version
 
-      - name: Install dev tools
-        env:
-          GO111MODULE: off
-        run: script/setup/install-dev-tools
-        working-directory: src/github.com/containerd/containerd
-
-      - name: Make
-        env:
-          GO111MODULE: off
-        working-directory: src/github.com/containerd/containerd
-        run: |
-          export PATH=$PATH:$(go env GOPATH)/bin
-          make check-protos check-api-descriptors
+      - run: script/setup/install-dev-tools
+      - run: make proto-fmt
+      - run: make check-protos check-api-descriptors
 
   man:
     name: Manpages
@@ -125,8 +104,7 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Install Go
-        uses: actions/setup-go@v1
+      - uses: actions/setup-go@v2
         with:
           go-version: '1.15.8'
 
@@ -136,16 +114,13 @@ jobs:
           echo "GOPATH=${{ github.workspace }}" >> $GITHUB_ENV
           echo "${{ github.workspace }}/bin" >> $GITHUB_PATH
 
-      - name: Checkout
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v2
         with:
           path: src/github.com/containerd/containerd
 
-      - name: Install dependencies
-        run: GO111MODULE=on go get github.com/cpuguy83/go-md2man/v2@v2.0.0
+      - run: GO111MODULE=on go get github.com/cpuguy83/go-md2man/v2@v2.0.0
 
-      - name: Make
-        run: make man
+      - run: make man
         working-directory: src/github.com/containerd/containerd
 
   #
@@ -162,8 +137,7 @@ jobs:
         os: [ubuntu-18.04, macos-10.15, windows-2019]
 
     steps:
-      - name: Install Go
-        uses: actions/setup-go@v1
+      - uses: actions/setup-go@v2
         with:
           go-version: '1.15.8'
 
@@ -173,8 +147,7 @@ jobs:
           echo "GOPATH=${{ github.workspace }}" >> $GITHUB_ENV
           echo "${{ github.workspace }}/bin" >> $GITHUB_PATH
 
-      - name: Checkout
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v2
         with:
           path: src/github.com/containerd/containerd
 
@@ -182,6 +155,13 @@ jobs:
         run: |
           make build
           make binaries
+        working-directory: src/github.com/containerd/containerd
+
+      - name: Cross-compile
+        if: startsWith(matrix.os, 'ubuntu')
+        run : |
+          GOOS=freebsd make build
+          GOOS=freebsd make binaries
         working-directory: src/github.com/containerd/containerd
 
   #
@@ -193,77 +173,70 @@ jobs:
     timeout-minutes: 30
     needs: [project, linters, protos, man]
 
+    defaults:
+      run:
+        shell: bash
+        working-directory: src/github.com/containerd/containerd
+
     steps:
-      - name: Install Go
-        uses: actions/setup-go@v1
+      - uses: actions/setup-go@v2
         with:
           go-version: '1.15.8'
 
-      - name: Set env
-        shell: bash
-        run: |
-          echo "GOPATH=${{ github.workspace }}" >> $GITHUB_ENV
-          echo "${{ github.workspace }}/src/github.com/containerd/containerd/bin" >> $GITHUB_PATH
-
-      - name: Checkout containerd
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v2
         with:
           path: src/github.com/containerd/containerd
-      - name: Checkout Microsoft/hcsshim
-        uses: actions/checkout@v2
+
+      - uses: actions/checkout@v2
         with:
           repository: Microsoft/hcsshim
           path: src/github.com/Microsoft/hcsshim
 
-      - name: Install Build Deps
-        shell: bash
+      - name: Set env
         run: |
-          cd src/github.com/containerd/containerd
-          script/setup/install-dev-tools
+          echo "GOPATH=${{ github.workspace }}" >> $GITHUB_ENV
+          echo "${{ github.workspace }}/src/github.com/containerd/containerd/bin" >> $GITHUB_PATH
+
+      - run: script/setup/install-dev-tools
+
       - name: Binaries
-        shell: bash
+        env:
+          CGO_ENABLED: 1
         run: |
           set -o xtrace
-          export CGO_ENABLED=1
-          cd src/github.com/containerd/containerd
           mingw32-make.exe binaries
           bindir="$(pwd)"
-          SHIM_COMMIT=$(grep Microsoft/hcsshim vendor.conf | awk '{print $2}')
+          SHIM_COMMIT=$(grep 'Microsoft/hcsshim ' go.mod | awk '{print $2}')
           cd ../../Microsoft/hcsshim
           git fetch --tags origin "${SHIM_COMMIT}"
           git checkout "${SHIM_COMMIT}"
           GO111MODULE=on go build -mod=vendor -o "${bindir}/containerd-shim-runhcs-v1.exe" ./cmd/containerd-shim-runhcs-v1
 
       - name: Tests
-        shell: bash
         env:
           CGO_ENABLED: 1
-        run: |
-          cd src/github.com/containerd/containerd
-          mingw32-make.exe test root-test
+        run: mingw32-make.exe test root-test
 
       - name: Integration 1
-        shell: bash
-        run: |
-          cd src/github.com/containerd/containerd
-          export CGO_ENABLED=1
-          mingw32-make.exe integration
+        env:
+          CGO_ENABLED: 1
+        run: mingw32-make.exe integration
+
       # Run the integration suite a second time. See discussion in github.com/containerd/containerd/pull/175
       - name: Integration 2
-        shell: bash
-        run: |
-          cd src/github.com/containerd/containerd
-          export TESTFLAGS_PARALLEL=1
-          export CGO_ENABLED=1
-          mingw32-make.exe integration
+        env:
+          TESTFLAGS_PARALLEL: 1
+          CGO_ENABLED: 1
+        run: mingw32-make.exe integration
 
   integration-linux:
     name: Linux Integration
     runs-on: ubuntu-18.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     needs: [project, linters, protos, man]
 
     strategy:
+      fail-fast: false
       matrix:
         runtime: [io.containerd.runtime.v1.linux, io.containerd.runc.v1, io.containerd.runc.v2]
         runc: [runc, crun]
@@ -274,21 +247,18 @@ jobs:
             runc: crun
 
     steps:
-      - name: Install Go
-        uses: actions/setup-go@v1
+      - uses: actions/setup-go@v2
         with:
           go-version: '1.15.8'
 
+      - uses: actions/checkout@v2
+        with:
+          path: src/github.com/containerd/containerd
+
       - name: Set env
-        shell: bash
         run: |
           echo "GOPATH=${{ github.workspace }}" >> $GITHUB_ENV
           echo "${{ github.workspace }}/bin" >> $GITHUB_PATH
-
-      - name: Checkout containerd
-        uses: actions/checkout@v2
-        with:
-          path: src/github.com/containerd/containerd
 
       - name: Install containerd dependencies
         env:
@@ -328,7 +298,6 @@ jobs:
       - name: Tests
         env:
           GOPROXY: direct
-          SKIPTESTS: github.com/containerd/containerd/snapshots/devmapper
         run: |
           make test
           sudo -E PATH=$PATH GOPATH=$GOPATH GOPROXY=$GOPROXY make root-test
@@ -353,7 +322,14 @@ jobs:
           sudo GOPATH=$GOPATH GOPROXY=$GOPROXY TEST_RUNTIME=$TEST_RUNTIME RUNC_FLAVOR=$RUNC_FLAVOR TESTFLAGS_PARALLEL=1 make integration EXTRA_TESTFLAGS=-no-criu
         working-directory: src/github.com/containerd/containerd
 
-      - name: CRI test
+      - name: CRI Integration Test
+        env:
+          TEST_RUNTIME: ${{ matrix.runtime }}
+        run: |
+          CONTAINERD_RUNTIME=$TEST_RUNTIME make cri-integration
+        working-directory: src/github.com/containerd/containerd
+
+      - name: cri-tools critest
         env:
           TEST_RUNTIME: ${{ matrix.runtime }}
         run: |
@@ -377,7 +353,7 @@ jobs:
     name: CGroupsV2 and SELinux Integration
     # nested virtualization is only available on macOS hosts
     runs-on: macos-10.15
-    timeout-minutes: 40
+    timeout-minutes: 45
     needs: [project, linters, protos, man]
     strategy:
       matrix:
@@ -385,8 +361,7 @@ jobs:
         # We can enable crun again when we get a better CI infra.
         runc: [runc]
     steps:
-      - name: Checkout containerd
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
       - name: "Cache ~/.vagrant.d/boxes"
         uses: actions/cache@v2
@@ -394,21 +369,18 @@ jobs:
           path: ~/.vagrant.d/boxes
           key: vagrant-${{ hashFiles('Vagrantfile*') }}
 
-      - name: Start vagrant
-        run: vagrant up
+      - run: |
+          # Retry if it fails (download.fedoraproject.org returns 404 sometimes)
+          vagrant up || vagrant up
 
       - name: Integration
         env:
           RUNC_FLAVOR: ${{ matrix.runc }}
-          # SELinux: replace Permissive with Enforcing after https://github.com/containers/container-selinux/pull/98
-          # is merged and the package becomes generally available.
-          SELINUX: Permissive
+          SELINUX: Enforcing
         run: vagrant up --provision-with=selinux,install-runc,test-integration
 
       - name: CRI test
         env:
           RUNC_FLAVOR: ${{ matrix.runc }}
-          # SELinux: replace Permissive with Enforcing after https://github.com/containers/container-selinux/pull/98
-          # is merged and the package becomes generally available.
-          SELINUX: Permissive
+          SELINUX: Enforcing
         run: vagrant up --provision-with=selinux,install-runc,test-cri

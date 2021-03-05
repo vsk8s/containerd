@@ -18,6 +18,7 @@ package images
 
 import (
 	"fmt"
+	"net/http/httptrace"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/cmd/ctr/commands"
@@ -25,6 +26,7 @@ import (
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/platforms"
+	"github.com/opencontainers/image-spec/identity"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
@@ -54,8 +56,16 @@ command. As part of this process, we do the following:
 			Usage: "pull content and metadata from all platforms",
 		},
 		cli.BoolFlag{
+			Name:  "trace",
+			Usage: "enable HTTP tracing for registry interactions",
+		},
+		cli.BoolFlag{
 			Name:  "all-metadata",
 			Usage: "Pull metadata for all platforms",
+		},
+		cli.BoolFlag{
+			Name:  "print-chainid",
+			Usage: "Print the resulting image's chain ID",
 		},
 	),
 	Action: func(context *cli.Context) error {
@@ -83,6 +93,9 @@ command. As part of this process, we do the following:
 			return err
 		}
 
+		if context.Bool("trace") {
+			ctx = httptrace.WithClientTrace(ctx, NewDebugClientTrace(ctx))
+		}
 		img, err := content.Fetch(ctx, client, ref, config)
 		if err != nil {
 			return err
@@ -117,6 +130,14 @@ command. As part of this process, we do the following:
 			err = i.Unpack(ctx, context.String("snapshotter"))
 			if err != nil {
 				return err
+			}
+			if context.Bool("print-chainid") {
+				diffIDs, err := i.RootFS(ctx)
+				if err != nil {
+					return err
+				}
+				chainID := identity.ChainID(diffIDs).String()
+				fmt.Printf("image chain ID: %s\n", chainID)
 			}
 		}
 
