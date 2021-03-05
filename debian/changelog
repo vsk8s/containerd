@@ -1,3 +1,11 @@
+containerd (1.4.4~ds1-1) unstable; urgency=medium
+
+  * New upstream version 1.4.4~ds1
+    Fix CVE-2021-21334:
+    CRI plugin: environment variables can leak between containers
+
+ -- Shengjing Zhu <zhsj@debian.org>  Fri, 05 Mar 2021 16:37:29 +0800
+
 containerd (1.4.3~ds1-2) unstable; urgency=medium
 
   * No longer need to mention docker-containerd in package description
