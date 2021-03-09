@@ -1,0 +1,156 @@
+From: Aleksa Sarai <cyphar@cyphar.com>
+Date: Tue, 11 Aug 2020 18:26:10 +1000
+Subject: apparmor: handle signal mediation
+
+On newer kernels and systems, AppArmor will block sending signals in
+many scenarios by default resulting in strange behaviours (container
+programs cannot signal each other, or host processes like containerd
+cannot signal containers).
+
+The reason this happens only on some distributions (and is not a kernel
+regression) is that the kernel doesn't enforce signal mediation unless
+the profile contains signal rules. However because our profies #include
+the distribution-managed <abstractions/base>, some distributions added
+signal rules -- which results in AppArmor enforcing signal mediation and
+thus a regression. On these systems, containers cannot send and receive
+signals at all -- meaning they cannot signal each other and the
+container runtime cannot kill them either.
+
+This issue was fixed in Docker in 2018[1] but this code was copied
+before then and thus the patches weren't carried. It also contains a new
+fix for a more esoteric case[2]. Ideally this code should live in a
+project like "containerd/apparmor" so that Docker, libpod, and
+containerd can share it, but that's probably something to do separately.
+
+In addition, the copyright header is updated to reference that the code
+is copied from Docker (and thus was not written entirely by the
+containerd authors).
+
+[1]: https://github.com/docker/docker/pull/37831
+[2]: https://github.com/docker/docker/pull/41337
+
+Signed-off-by: Aleksa Sarai <cyphar@cyphar.com>
+
+Origin: backport, https://github.com/containerd/containerd/pull/4467
+---
+ contrib/apparmor/template.go      | 46 +++++++++++++++++++++++++++++++++++----
+ contrib/apparmor/template_test.go | 18 +++++++++++++++
+ 2 files changed, 60 insertions(+), 4 deletions(-)
+ create mode 100644 contrib/apparmor/template_test.go
+
+diff --git a/contrib/apparmor/template.go b/contrib/apparmor/template.go
+index 34ff992..da00695 100644
+--- a/contrib/apparmor/template.go
++++ b/contrib/apparmor/template.go
+@@ -1,6 +1,8 @@
+ // +build linux
+ 
+ /*
++   Copyright The docker Authors.
++   Copyright The Moby Authors.
+    Copyright The containerd Authors.
+ 
+    Licensed under the Apache License, Version 2.0 (the "License");
+@@ -22,6 +24,7 @@ import (
+ 	"bufio"
+ 	"fmt"
+ 	"io"
++	"io/ioutil"
+ 	"os"
+ 	"os/exec"
+ 	"path"
+@@ -32,6 +35,10 @@ import (
+ 	"github.com/pkg/errors"
+ )
+ 
++// NOTE: This code is copied from <github.com/docker/docker/profiles/apparmor>.
++//       If you plan to make any changes, please make sure they are also sent
++//       upstream.
++
+ const dir = "/etc/apparmor.d"
+ 
+ const defaultTemplate = `
+@@ -48,6 +55,14 @@ profile {{.Name}} flags=(attach_disconnected,mediate_deleted) {
+   capability,
+   file,
+   umount,
++{{if ge .Version 208096}}
++  # Host (privileged) processes may send signals to container processes.
++  signal (receive) peer=unconfined,
++  # Manager may send signals to container processes.
++  signal (receive) peer={{.DaemonProfile}},
++  # Container processes may send signals amongst themselves.
++  signal (send,receive) peer={{.Name}},
++{{end}}
+ 
+   deny @{PROC}/* w,   # deny write for all files directly in /proc (not in a subdir)
+   # deny write to files not in /proc/<number>/** or /proc/sys/**
+@@ -76,10 +91,23 @@ profile {{.Name}} flags=(attach_disconnected,mediate_deleted) {
+ `
+ 
+ type data struct {
+-	Name         string
+-	Imports      []string
+-	InnerImports []string
+-	Version      int
++	Name          string
++	Imports       []string
++	InnerImports  []string
++	DaemonProfile string
++	Version       int
++}
++
++func cleanProfileName(profile string) string {
++	// Normally profiles are suffixed by " (enforce)". AppArmor profiles cannot
++	// contain spaces so this doesn't restrict daemon profile names.
++	if parts := strings.SplitN(profile, " ", 2); len(parts) >= 1 {
++		profile = parts[0]
++	}
++	if profile == "" {
++		profile = "unconfined"
++	}
++	return profile
+ }
+ 
+ func loadData(name string) (*data, error) {
+@@ -100,6 +128,16 @@ func loadData(name string) (*data, error) {
+ 		return nil, errors.Wrap(err, "get apparmor_parser version")
+ 	}
+ 	p.Version = ver
++
++	// Figure out the daemon profile.
++	currentProfile, err := ioutil.ReadFile("/proc/self/attr/current")
++	if err != nil {
++		// If we couldn't get the daemon profile, assume we are running
++		// unconfined which is generally the default.
++		currentProfile = nil
++	}
++	p.DaemonProfile = cleanProfileName(string(currentProfile))
++
+ 	return &p, nil
+ }
+ 
+diff --git a/contrib/apparmor/template_test.go b/contrib/apparmor/template_test.go
+new file mode 100644
+index 0000000..c49306a
+--- /dev/null
++++ b/contrib/apparmor/template_test.go
+@@ -0,0 +1,18 @@
++// +build linux
++
++package apparmor
++
++import (
++	"testing"
++
++	"gotest.tools/v3/assert"
++)
++
++func TestCleanProfileName(t *testing.T) {
++	assert.Equal(t, cleanProfileName(""), "unconfined")
++	assert.Equal(t, cleanProfileName("unconfined"), "unconfined")
++	assert.Equal(t, cleanProfileName("unconfined (enforce)"), "unconfined")
++	assert.Equal(t, cleanProfileName("docker-default"), "docker-default")
++	assert.Equal(t, cleanProfileName("foo"), "foo")
++	assert.Equal(t, cleanProfileName("foo (enforce)"), "foo")
++}
