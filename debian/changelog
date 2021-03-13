@@ -1,3 +1,14 @@
+containerd (1.4.4~ds1-2) unstable; urgency=medium
+
+  * Backport apparmor signal handle patch
+    https://github.com/containerd/containerd/pull/4467
+  * Backport patch to ignore false positive file-already-closed message
+    https://github.com/containerd/containerd/pull/5174
+  * Backport overlayfs userxattr support for kernel 5.11
+    https://github.com/containerd/containerd/pull/5076
+
+ -- Shengjing Zhu <zhsj@debian.org>  Sun, 14 Mar 2021 02:02:27 +0800
+
 containerd (1.4.4~ds1-1) unstable; urgency=medium
 
   * New upstream version 1.4.4~ds1
