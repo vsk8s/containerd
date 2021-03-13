@@ -5,3 +5,4 @@
 0005-backport-github.com-containerd-containerd-remotes.patch
 0006-backport-apparmor-handle-signal-mediation.patch
 0007-backport-runtime-ignore-file-already-closed-error.patch
+0008-backport-overlay-support-userxattr-kernel-5.11.patch
