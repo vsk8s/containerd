@@ -4,3 +4,4 @@
 0004-Add-cgo-tag-to-btrfs-plugin.patch
 0005-backport-github.com-containerd-containerd-remotes.patch
 0006-backport-apparmor-handle-signal-mediation.patch
+0007-backport-runtime-ignore-file-already-closed-error.patch
