@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/containerd/containerd"
 	"github.com/containerd/containerd/defaults"
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/images"
@@ -309,7 +310,7 @@ func TestImagePullAllPlatforms(t *testing.T) {
 	defer cancel()
 
 	cs := client.ContentStore()
-	img, err := client.Fetch(ctx, "docker.io/library/busybox:latest")
+	img, err := client.Fetch(ctx, "k8s.gcr.io/pause:3.4.1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,7 +358,9 @@ func TestImagePullSomePlatforms(t *testing.T) {
 		opts = append(opts, WithPlatform(platform))
 	}
 
-	img, err := client.Fetch(ctx, "k8s.gcr.io/pause:3.1", opts...)
+	// Note: Must be different to the image used in TestImagePullAllPlatforms
+	// or it will see the content pulled by that, and fail.
+	img, err := client.Fetch(ctx, "k8s.gcr.io/pause:3.2", opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -514,7 +517,7 @@ func TestDefaultRuntimeWithNamespaceLabels(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer testClient.Close()
-	if testClient.runtime != testRuntime {
+	if testClient.Runtime() != testRuntime {
 		t.Error("failed to set default runtime from namespace labels")
 	}
 }

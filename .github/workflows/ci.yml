@@ -20,7 +20,7 @@ jobs:
 
     strategy:
       matrix:
-        go-version: [1.15.8]
+        go-version: [1.16.2]
         os: [ubuntu-18.04, macos-10.15, windows-2019]
 
     steps:
@@ -73,7 +73,7 @@ jobs:
     steps:
       - uses: actions/setup-go@v2
         with:
-          go-version: '1.15.8'
+          go-version: '1.16.2'
 
       - uses: actions/checkout@v2
         with:
@@ -106,7 +106,7 @@ jobs:
     steps:
       - uses: actions/setup-go@v2
         with:
-          go-version: '1.15.8'
+          go-version: '1.16.2'
 
       - name: Set env
         shell: bash
@@ -139,7 +139,7 @@ jobs:
     steps:
       - uses: actions/setup-go@v2
         with:
-          go-version: '1.15.8'
+          go-version: '1.16.2'
 
       - name: Set env
         shell: bash
@@ -181,7 +181,7 @@ jobs:
     steps:
       - uses: actions/setup-go@v2
         with:
-          go-version: '1.15.8'
+          go-version: '1.16.2'
 
       - uses: actions/checkout@v2
         with:
@@ -210,7 +210,7 @@ jobs:
           cd ../../Microsoft/hcsshim
           git fetch --tags origin "${SHIM_COMMIT}"
           git checkout "${SHIM_COMMIT}"
-          GO111MODULE=on go build -mod=vendor -o "${bindir}/containerd-shim-runhcs-v1.exe" ./cmd/containerd-shim-runhcs-v1
+          GO111MODULE=on go build -mod=vendor -o "${bindir}/integration/client/containerd-shim-runhcs-v1.exe" ./cmd/containerd-shim-runhcs-v1
 
       - name: Tests
         env:
@@ -249,7 +249,7 @@ jobs:
     steps:
       - uses: actions/setup-go@v2
         with:
-          go-version: '1.15.8'
+          go-version: '1.16.2'
 
       - uses: actions/checkout@v2
         with:
@@ -369,7 +369,8 @@ jobs:
           path: ~/.vagrant.d/boxes
           key: vagrant-${{ hashFiles('Vagrantfile*') }}
 
-      - run: |
+      - name: Vagrant start
+        run: |
           # Retry if it fails (download.fedoraproject.org returns 404 sometimes)
           vagrant up || vagrant up
 

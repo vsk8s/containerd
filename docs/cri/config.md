@@ -40,7 +40,7 @@ version = 2
   selinux_category_range = 1024
 
   # sandbox_image is the image used by sandbox container.
-  sandbox_image = "k8s.gcr.io/pause:3.2"
+  sandbox_image = "k8s.gcr.io/pause:3.4.1"
 
   # stats_collect_period is the period (in seconds) of snapshots stats collection.
   stats_collect_period = 10
@@ -237,6 +237,11 @@ version = 2
 
   # 'plugins."io.containerd.grpc.v1.cri".registry' contains config related to the registry
   [plugins."io.containerd.grpc.v1.cri".registry]
+    # Specifies a directory to look for registry configs in.
+    # Dir can be used just like /etc/docker/certs.d OR can contain a hosts.toml with more specific configurations.
+    #
+    # NOTE: Specifying this will cause the cri plugin to ignore any other registry configs specified in this configuration file.
+    config_path = "/etc/containerd/certs.d"
 
     # 'plugins."io.containerd.grpc.v1.cri.registry.headers sets the http request headers to send for all registry requests
     [plugins."io.containerd.grpc.v1.cri".registry.headers]
