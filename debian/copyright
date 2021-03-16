@@ -12,7 +12,6 @@ Files-Excluded:
   vendor/github.com/containerd/cgroups
   vendor/github.com/containerd/console
   vendor/github.com/containerd/continuity
-  vendor/github.com/containerd/cri~~
   vendor/github.com/containerd/fifo
   vendor/github.com/containerd/go-cni
   vendor/github.com/containerd/go-runc
