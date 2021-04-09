@@ -16,7 +16,7 @@
    limitations under the License.
 */
 
-package containerd
+package client
 
 import (
 	"bytes"
@@ -34,9 +34,9 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/containerd/containerd"
 	"github.com/containerd/cgroups"
 	cgroupsv2 "github.com/containerd/cgroups/v2"
+	. "github.com/containerd/containerd"
 	apievents "github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/containers"
@@ -54,6 +54,8 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 )
+
+const testUserNSImage = "mirror.gcr.io/library/alpine:latest"
 
 // TestRegressionIssue4769 verifies the number of task exit events.
 //
@@ -887,10 +889,10 @@ func TestContainerUsername(t *testing.T) {
 		io.Copy(buf, direct.Stdout)
 	}()
 
-	// squid user in the alpine image has a uid of 31
+	// the www-data user in the busybox image has a uid of 33
 	container, err := client.NewContainer(ctx, id,
 		WithNewSnapshot(id, image),
-		WithNewSpec(oci.WithImageConfig(image), oci.WithUsername("squid"), oci.WithProcessArgs("id", "-u")),
+		WithNewSpec(oci.WithImageConfig(image), oci.WithUsername("www-data"), oci.WithProcessArgs("id", "-u")),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -916,16 +918,16 @@ func TestContainerUsername(t *testing.T) {
 	wg.Wait()
 
 	output := strings.TrimSuffix(buf.String(), "\n")
-	if output != "31" {
-		t.Errorf("expected squid uid to be 31 but received %q", output)
+	if output != "33" {
+		t.Errorf("expected www-data uid to be 33 but received %q", output)
 	}
 }
 
 func TestContainerUser(t *testing.T) {
 	t.Parallel()
-	t.Run("UserNameAndGroupName", func(t *testing.T) { testContainerUser(t, "squid:squid", "31:31") })
-	t.Run("UserIDAndGroupName", func(t *testing.T) { testContainerUser(t, "1001:squid", "1001:31") })
-	t.Run("UserNameAndGroupID", func(t *testing.T) { testContainerUser(t, "squid:1002", "31:1002") })
+	t.Run("UserNameAndGroupName", func(t *testing.T) { testContainerUser(t, "www-data:www-data", "33:33") })
+	t.Run("UserIDAndGroupName", func(t *testing.T) { testContainerUser(t, "1001:www-data", "1001:33") })
+	t.Run("UserNameAndGroupID", func(t *testing.T) { testContainerUser(t, "www-data:1002", "33:1002") })
 	t.Run("UserIDAndGroupID", func(t *testing.T) { testContainerUser(t, "1001:1002", "1001:1002") })
 }
 
@@ -1225,7 +1227,7 @@ func TestContainerUserID(t *testing.T) {
 		io.Copy(buf, direct.Stdout)
 	}()
 
-	// adm user in the alpine image has a uid of 3 and gid of 4.
+	// sys user in the busybox image has a uid and gid of 3.
 	container, err := client.NewContainer(ctx, id,
 		WithNewSnapshot(id, image),
 		WithNewSpec(oci.WithImageConfig(image), oci.WithUserID(3), oci.WithProcessArgs("sh", "-c", "echo $(id -u):$(id -g)")),
@@ -1254,8 +1256,8 @@ func TestContainerUserID(t *testing.T) {
 	wg.Wait()
 
 	output := strings.TrimSuffix(buf.String(), "\n")
-	if output != "3:4" {
-		t.Errorf("expected uid:gid to be 3:4, but received %q", output)
+	if output != "3:3" {
+		t.Errorf("expected uid:gid to be 3:3, but received %q", output)
 	}
 }
 
@@ -1596,7 +1598,7 @@ func testUserNamespaces(t *testing.T, readonlyRootFS bool) {
 	)
 	defer cancel()
 
-	image, err = client.GetImage(ctx, testImage)
+	image, err = client.Pull(ctx, testUserNSImage, WithPullUnpack)
 	if err != nil {
 		t.Fatal(err)
 	}

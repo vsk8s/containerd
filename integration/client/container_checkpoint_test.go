@@ -16,7 +16,7 @@
    limitations under the License.
 */
 
-package containerd
+package client
 
 import (
 	"bytes"
@@ -414,7 +414,7 @@ func TestCheckpointLeaveRunning(t *testing.T) {
 	<-statusC
 }
 
-func TestCRWithImagePath(t *testing.T) {
+func TestCheckpointRestoreWithImagePath(t *testing.T) {
 	if !supportsCriu {
 		t.Skip("system does not have criu installed")
 	}
@@ -532,4 +532,84 @@ func TestCRWithImagePath(t *testing.T) {
 	}
 	<-statusC
 	ntask.Delete(ctx)
+}
+
+func TestCheckpointOnPauseStatus(t *testing.T) {
+	if !supportsCriu {
+		t.Skip("system does not have criu installed")
+	}
+	client, err := newClient(t, address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	if client.Runtime() == plugin.RuntimeLinuxV1 {
+		t.Skip()
+	}
+
+	var (
+		ctx, cancel = testContext(t)
+		id          = t.Name()
+	)
+	defer cancel()
+
+	image, err := client.GetImage(ctx, testImage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	container, err := client.NewContainer(ctx, id, WithNewSnapshot(id, image), WithNewSpec(oci.WithImageConfig(image), oci.WithProcessArgs("sleep", "10")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer container.Delete(ctx, WithSnapshotCleanup)
+
+	task, err := container.NewTask(ctx, empty())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		task.Resume(ctx)
+		task.Delete(ctx)
+	}()
+
+	statusC, err := task.Wait(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := task.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := task.Pause(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = container.Checkpoint(ctx, testCheckpointName+"on-pause", []CheckpointOpts{
+		WithCheckpointRuntime,
+		WithCheckpointRW,
+		WithCheckpointTask,
+	}...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	status, err := task.Status(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if status.Status != Paused {
+		t.Fatalf("expected paused state, but got %s", status.Status)
+	}
+
+	if err := task.Resume(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := task.Kill(ctx, syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+
+	<-statusC
 }
