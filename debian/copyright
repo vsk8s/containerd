@@ -1,7 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Source: https://github.com/docker/containerd
 Files-Excluded:
-  vendor/github.com/BurntSushi/toml
   vendor/github.com/Microsoft/go-winio
   vendor/github.com/Microsoft/hcsshim
   vendor/github.com/beorn7/perks
@@ -58,6 +57,7 @@ Files-Excluded:
   vendor/github.com/opencontainers/runc
   vendor/github.com/opencontainers/runtime-spec
   vendor/github.com/opencontainers/selinux
+  vendor/github.com/pelletier/go-toml
   vendor/github.com/pkg/errors
   vendor/github.com/pmezard/go-difflib
   vendor/github.com/prometheus/client_golang
