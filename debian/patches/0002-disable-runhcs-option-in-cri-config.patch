@@ -7,18 +7,18 @@ Subject: disable runhcs option in cri config
  1 file changed, 3 deletions(-)
 
 diff --git a/pkg/cri/server/helpers.go b/pkg/cri/server/helpers.go
-index 3514e68..5255bbb 100644
+index 1d5f49f..1885117 100644
 --- a/pkg/cri/server/helpers.go
 +++ b/pkg/cri/server/helpers.go
-@@ -24,7 +24,6 @@ import (
+@@ -23,7 +23,6 @@ import (
+ 	"strconv"
  	"strings"
  
- 	"github.com/BurntSushi/toml"
 -	runhcsoptions "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/options"
  	"github.com/containerd/containerd"
  	"github.com/containerd/containerd/containers"
  	"github.com/containerd/containerd/plugin"
-@@ -325,8 +324,6 @@ func getRuntimeOptionsType(t string) interface{} {
+@@ -329,8 +328,6 @@ func getRuntimeOptionsType(t string) interface{} {
  		return &runcoptions.Options{}
  	case plugin.RuntimeLinuxV1:
  		return &runctypes.RuncOptions{}
