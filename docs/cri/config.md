@@ -40,7 +40,7 @@ version = 2
   selinux_category_range = 1024
 
   # sandbox_image is the image used by sandbox container.
-  sandbox_image = "k8s.gcr.io/pause:3.4.1"
+  sandbox_image = "k8s.gcr.io/pause:3.5"
 
   # stats_collect_period is the period (in seconds) of snapshots stats collection.
   stats_collect_period = 10
@@ -123,16 +123,6 @@ version = 2
 
     # default_runtime_name is the default runtime name to use.
     default_runtime_name = "runc"
-
-    # 'plugins."io.containerd.grpc.v1.cri".containerd.default_runtime' is the runtime to use in containerd.
-    # DEPRECATED: use `default_runtime_name` and `plugins."io.containerd.grpc.v1.cri".runtimes` instead.
-    # Remove in containerd 1.4.
-    [plugins."io.containerd.grpc.v1.cri".containerd.default_runtime]
-
-    # 'plugins."io.containerd.grpc.v1.cri".containerd.untrusted_workload_runtime' is a runtime to run untrusted workloads on it.
-    # DEPRECATED: use `untrusted` runtime in `plugins."io.containerd.grpc.v1.cri".runtimes` instead.
-    # Remove in containerd 1.4.
-    [plugins."io.containerd.grpc.v1.cri".containerd.untrusted_workload_runtime]
 
     # 'plugins."io.containerd.grpc.v1.cri".containerd.runtimes' is a map from CRI RuntimeHandler strings, which specify types
     # of runtime configurations, to the matching configurations.
@@ -235,23 +225,6 @@ version = 2
     # See the "CNI Config Template" section for more details.
     conf_template = ""
 
-  # 'plugins."io.containerd.grpc.v1.cri".registry' contains config related to the registry
-  [plugins."io.containerd.grpc.v1.cri".registry]
-    # Specifies a directory to look for registry configs in.
-    # Dir can be used just like /etc/docker/certs.d OR can contain a hosts.toml with more specific configurations.
-    #
-    # NOTE: Specifying this will cause the cri plugin to ignore any other registry configs specified in this configuration file.
-    config_path = "/etc/containerd/certs.d"
-
-    # 'plugins."io.containerd.grpc.v1.cri.registry.headers sets the http request headers to send for all registry requests
-    [plugins."io.containerd.grpc.v1.cri".registry.headers]
-        Foo = ["bar"]
-
-    # 'plugins."io.containerd.grpc.v1.cri".registry.mirrors' are namespace to mirror mapping for all namespaces.
-    [plugins."io.containerd.grpc.v1.cri".registry.mirrors]
-      [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
-        endpoint = ["https://registry-1.docker.io", ]
-
   # 'plugins."io.containerd.grpc.v1.cri".image_decryption' contains config related
   # to handling decryption of encrypted container images.
   [plugins."io.containerd.grpc.v1.cri".image_decryption]
@@ -273,6 +246,41 @@ version = 2
     # * Stream processors: https://github.com/containerd/containerd/blob/master/docs/stream_processors.md
     # * Containerd imgcrypt: https://github.com/containerd/imgcrypt
     key_model = "node"
+
+  # 'plugins."io.containerd.grpc.v1.cri".registry' contains config related to
+  # the registry
+  [plugins."io.containerd.grpc.v1.cri".registry]
+    # config_path specifies a directory to look for the registry hosts configuration.
+    #
+    # The cri plugin will look for and use config_path/host-namespace/hosts.toml
+    #   configs if present OR load certificate files as laid out in the Docker/Moby
+    #   specific layout https://docs.docker.com/engine/security/certificates/
+    #
+    # If config_path is not provided defaults are used.
+    #
+    # *** registry.configs and registry.mirrors that were a part of containerd 1.4
+    # are now DEPRECATED and will only be used if the config_path is not specified.
+    config_path = ""
+```
+
+## Registry Configuration
+
+Here is a simple example for a default registry hosts configuration. Set
+`config_path = "/etc/containerd/certs.d"` in your config.toml for containerd.
+Make a directory tree at the config path that includes `docker.io` as a directory
+representing the host namespace to be configured. Then add a `hosts.toml` file
+in the `docker.io` to configure the host namespace. It should look like this:
+```
+$ tree /etc/containerd/certs.d
+/etc/containerd/certs.d
+└── docker.io
+    └── hosts.toml
+
+$ cat /etc/containerd/certs.d/docker.io/hosts.toml
+server = "https://docker.io"
+
+[host."https://registry-1.docker.io"]
+  capabilities = ["pull", "resolve"]
 ```
 
 ## Untrusted Workload
