@@ -31,6 +31,78 @@ func TestValidateConfig(t *testing.T) {
 		expectedErr string
 		expected    *PluginConfig
 	}{
+		"deprecated untrusted_workload_runtime": {
+			config: &PluginConfig{
+				ContainerdConfig: ContainerdConfig{
+					DefaultRuntimeName: RuntimeDefault,
+					UntrustedWorkloadRuntime: Runtime{
+						Type: "untrusted",
+					},
+					Runtimes: map[string]Runtime{
+						RuntimeDefault: {
+							Type: "default",
+						},
+					},
+				},
+			},
+			expected: &PluginConfig{
+				ContainerdConfig: ContainerdConfig{
+					DefaultRuntimeName: RuntimeDefault,
+					UntrustedWorkloadRuntime: Runtime{
+						Type: "untrusted",
+					},
+					Runtimes: map[string]Runtime{
+						RuntimeUntrusted: {
+							Type: "untrusted",
+						},
+						RuntimeDefault: {
+							Type: "default",
+						},
+					},
+				},
+			},
+		},
+		"both untrusted_workload_runtime and runtime[untrusted]": {
+			config: &PluginConfig{
+				ContainerdConfig: ContainerdConfig{
+					DefaultRuntimeName: RuntimeDefault,
+					UntrustedWorkloadRuntime: Runtime{
+						Type: "untrusted-1",
+					},
+					Runtimes: map[string]Runtime{
+						RuntimeUntrusted: {
+							Type: "untrusted-2",
+						},
+						RuntimeDefault: {
+							Type: "default",
+						},
+					},
+				},
+			},
+			expectedErr: fmt.Sprintf("conflicting definitions: configuration includes both `untrusted_workload_runtime` and `runtimes[%q]`", RuntimeUntrusted),
+		},
+		"deprecated default_runtime": {
+			config: &PluginConfig{
+				ContainerdConfig: ContainerdConfig{
+					DefaultRuntime: Runtime{
+						Type: "default",
+					},
+				},
+			},
+			expected: &PluginConfig{
+				ContainerdConfig: ContainerdConfig{
+					DefaultRuntime: Runtime{
+						Type: "default",
+					},
+					DefaultRuntimeName: RuntimeDefault,
+					Runtimes: map[string]Runtime{
+						RuntimeDefault: {
+							Type: "default",
+						},
+					},
+				},
+			},
+		},
 		"no default_runtime_name": {
 			config:      &PluginConfig{},
 			expectedErr: "`default_runtime_name` is empty",
@@ -41,7 +113,7 @@ func TestValidateConfig(t *testing.T) {
 					DefaultRuntimeName: RuntimeDefault,
 				},
 			},
-			expectedErr: "no corresponding runtime configured in `runtimes` for `default_runtime_name`",
+			expectedErr: "no corresponding runtime configured in `containerd.runtimes` for `containerd` `default_runtime_name = \"default\"",
 		},
 		"deprecated systemd_cgroup for v1 runtime": {
 			config: &PluginConfig{

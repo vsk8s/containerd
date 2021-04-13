@@ -124,6 +124,16 @@ version = 2
     # default_runtime_name is the default runtime name to use.
     default_runtime_name = "runc"
 
+    # 'plugins."io.containerd.grpc.v1.cri".containerd.default_runtime' is the runtime to use in containerd.
+    # DEPRECATED: use `default_runtime_name` and `plugins."io.containerd.grpc.v1.cri".runtimes` instead.
+    # Remove in containerd 1.4.
+    [plugins."io.containerd.grpc.v1.cri".containerd.default_runtime]
+
+    # 'plugins."io.containerd.grpc.v1.cri".containerd.untrusted_workload_runtime' is a runtime to run untrusted workloads on it.
+    # DEPRECATED: use `untrusted` runtime in `plugins."io.containerd.grpc.v1.cri".runtimes` instead.
+    # Remove in containerd 1.4.
+    [plugins."io.containerd.grpc.v1.cri".containerd.untrusted_workload_runtime]
+
     # 'plugins."io.containerd.grpc.v1.cri".containerd.runtimes' is a map from CRI RuntimeHandler strings, which specify types
     # of runtime configurations, to the matching configurations.
     # In this example, 'runc' is the RuntimeHandler string to match.
@@ -311,7 +321,7 @@ values are:
 * `.PodCIDR` is a string of the first CIDR assigned to the node.
 * `.PodCIDRRanges` is a string array of all CIDRs assigned to the node. It is
   usually used for
-  [dualstack](https://github.com/kubernetes/enhancements/blob/master/keps/sig-network/20180612-ipv4-ipv6-dual-stack.md) support.
+  [dualstack](https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/563-dual-stack) support.
 * `.Routes` is a string array of all routes needed. It is usually used for
   dualstack support or single stack but IPv4 or IPv6 is decided at runtime.
 
