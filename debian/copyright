@@ -81,6 +81,7 @@ Files-Excluded:
   vendor/golang.org/x/sync
   vendor/golang.org/x/sys
   vendor/golang.org/x/text
+  vendor/golang.org/x/term
   vendor/golang.org/x/time
   vendor/golang.org/x/xerrors
   vendor/google.golang.org/appengine
