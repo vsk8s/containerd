@@ -1200,7 +1200,7 @@ index d95e0c8..94a270c 100644
  
  	// 201 is specified return status, some registries return
 diff --git a/remotes/docker/resolver.go b/remotes/docker/resolver.go
-index f958218..3481c51 100644
+index aea092c..866379e 100644
 --- a/remotes/docker/resolver.go
 +++ b/remotes/docker/resolver.go
 @@ -41,10 +41,6 @@ import (
@@ -1246,7 +1246,7 @@ index f958218..3481c51 100644
  	if err != nil {
  		return "", ocispec.Descriptor{}, err
  	}
-@@ -391,12 +382,7 @@ func (r *dockerResolver) Resolve(ctx context.Context, ref string) (string, ocisp
+@@ -393,12 +384,7 @@ func (r *dockerResolver) Resolve(ctx context.Context, ref string) (string, ocisp
  }
  
  func (r *dockerResolver) Fetcher(ctx context.Context, ref string) (remotes.Fetcher, error) {
@@ -1260,7 +1260,7 @@ index f958218..3481c51 100644
  	if err != nil {
  		return nil, err
  	}
-@@ -407,23 +393,27 @@ func (r *dockerResolver) Fetcher(ctx context.Context, ref string) (remotes.Fetch
+@@ -409,23 +395,27 @@ func (r *dockerResolver) Fetcher(ctx context.Context, ref string) (remotes.Fetch
  }
  
  func (r *dockerResolver) Pusher(ctx context.Context, ref string) (remotes.Pusher, error) {
@@ -1295,7 +1295,7 @@ index f958218..3481c51 100644
  type dockerBase struct {
  	refspec    reference.Spec
  	repository string
-@@ -455,10 +445,11 @@ func (r *dockerBase) filterHosts(caps HostCapabilities) (hosts []RegistryHost) {
+@@ -457,10 +447,11 @@ func (r *dockerBase) filterHosts(caps HostCapabilities) (hosts []RegistryHost) {
  }
  
  func (r *dockerBase) request(host RegistryHost, method string, ps ...string) *request {
