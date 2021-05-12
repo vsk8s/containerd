@@ -24,10 +24,18 @@ import (
 )
 
 func defaultConfig() *srvconfig.Config {
-	cfg := platformAgnosticDefaultConfig()
-	cfg.Debug = srvconfig.Debug{
-		Level:   "info",
-		Address: defaults.DefaultDebugAddress,
+	return &srvconfig.Config{
+		Version: 1,
+		Root:    defaults.DefaultRootDir,
+		State:   defaults.DefaultStateDir,
+		GRPC: srvconfig.GRPCConfig{
+			Address: defaults.DefaultAddress,
+		},
+		Debug: srvconfig.Debug{
+			Level:   "info",
+			Address: defaults.DefaultDebugAddress,
+		},
+		DisabledPlugins: []string{},
+		RequiredPlugins: []string{},
 	}
-	return cfg
 }

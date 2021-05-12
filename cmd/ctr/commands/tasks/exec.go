@@ -26,7 +26,6 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/cmd/ctr/commands"
-	"github.com/containerd/containerd/oci"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
 )
@@ -62,10 +61,6 @@ var execCommand = cli.Command{
 			Name:  "log-uri",
 			Usage: "log uri for custom shim logging",
 		},
-		cli.StringFlag{
-			Name:  "user",
-			Usage: "user id or name",
-		},
 	},
 	Action: func(context *cli.Context) error {
 		var (
@@ -90,24 +85,14 @@ var execCommand = cli.Command{
 		if err != nil {
 			return err
 		}
-		if user := context.String("user"); user != "" {
-			c, err := container.Info(ctx)
-			if err != nil {
-				return err
-			}
-			if err := oci.WithUser(user)(ctx, client, &c, spec); err != nil {
-				return err
-			}
+		task, err := container.Task(ctx, nil)
+		if err != nil {
+			return err
 		}
 
 		pspec := spec.Process
 		pspec.Terminal = tty
 		pspec.Args = args
-
-		task, err := container.Task(ctx, nil)
-		if err != nil {
-			return err
-		}
 
 		var (
 			ioCreator cio.Creator

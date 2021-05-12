@@ -55,7 +55,6 @@ var densityCommand = cli.Command{
 			Exec:        cliContext.GlobalBool("exec"),
 			JSON:        cliContext.GlobalBool("json"),
 			Metrics:     cliContext.GlobalString("metrics"),
-			Snapshotter: cliContext.GlobalString("snapshotter"),
 		}
 		client, err := config.newClient()
 		if err != nil {
@@ -67,7 +66,7 @@ var densityCommand = cli.Command{
 			return err
 		}
 		logrus.Infof("pulling %s", imageName)
-		image, err := client.Pull(ctx, imageName, containerd.WithPullUnpack, containerd.WithPullSnapshotter(config.Snapshotter))
+		image, err := client.Pull(ctx, imageName, containerd.WithPullUnpack)
 		if err != nil {
 			return err
 		}
@@ -92,7 +91,6 @@ var densityCommand = cli.Command{
 				id := fmt.Sprintf("density-%d", i)
 
 				c, err := client.NewContainer(ctx, id,
-					containerd.WithSnapshotter(config.Snapshotter),
 					containerd.WithNewSnapshot(id, image),
 					containerd.WithNewSpec(
 						oci.WithImageConfig(image),

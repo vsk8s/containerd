@@ -20,8 +20,6 @@ package dmsetup
 
 import (
 	"fmt"
-	"io"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -274,11 +272,10 @@ func Version() (string, error) {
 
 // DeviceStatus represents devmapper device status information
 type DeviceStatus struct {
-	RawOutput string
-	Offset    int64
-	Length    int64
-	Target    string
-	Params    []string
+	Offset int64
+	Length int64
+	Target string
+	Params []string
 }
 
 // Status provides status information for devmapper device
@@ -292,7 +289,6 @@ func Status(deviceName string) (*DeviceStatus, error) {
 	if err != nil {
 		return nil, err
 	}
-	status.RawOutput = output
 
 	// Status output format:
 	//  Offset (int64)
@@ -331,18 +327,15 @@ func GetFullDevicePath(deviceName string) string {
 }
 
 // BlockDeviceSize returns size of block device in bytes
-func BlockDeviceSize(path string) (int64, error) {
-	f, err := os.Open(path)
+func BlockDeviceSize(devicePath string) (uint64, error) {
+	data, err := exec.Command("blockdev", "--getsize64", "-q", devicePath).CombinedOutput()
+	output := string(data)
 	if err != nil {
-		return 0, err
+		return 0, errors.Wrapf(err, output)
 	}
-	defer f.Close()
 
-	size, err := f.Seek(0, io.SeekEnd)
-	if err != nil {
-		return 0, errors.Wrapf(err, "failed to seek on %q", path)
-	}
-	return size, nil
+	output = strings.TrimSuffix(output, "\n")
+	return strconv.ParseUint(output, 10, 64)
 }
 
 func dmsetup(args ...string) (string, error) {

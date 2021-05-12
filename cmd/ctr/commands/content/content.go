@@ -53,7 +53,6 @@ var (
 			listCommand,
 			pushObjectCommand,
 			setLabelsCommand,
-			pruneCommand,
 		},
 	}
 
@@ -79,9 +78,7 @@ var (
 			}
 			defer ra.Close()
 
-			// use 1MB buffer like we do for ingesting
-			buf := make([]byte, 1<<20)
-			_, err = io.CopyBuffer(os.Stdout, content.NewReader(ra), buf)
+			_, err = io.Copy(os.Stdout, content.NewReader(ra))
 			return err
 		},
 	}

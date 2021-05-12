@@ -18,4 +18,4 @@
 
 package main
 
-import _ "github.com/containerd/zfs/plugin"
+import _ "github.com/containerd/zfs"

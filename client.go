@@ -39,7 +39,6 @@ import (
 	snapshotsapi "github.com/containerd/containerd/api/services/snapshots/v1"
 	"github.com/containerd/containerd/api/services/tasks/v1"
 	versionservice "github.com/containerd/containerd/api/services/version/v1"
-	apitypes "github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/content"
 	contentproxy "github.com/containerd/containerd/content/proxy"
@@ -63,7 +62,6 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
-	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -227,11 +225,6 @@ func (c *Client) Reconnect() error {
 	return nil
 }
 
-// Runtime returns the name of the runtime being used
-func (c *Client) Runtime() string {
-	return c.runtime
-}
-
 // IsServing returns true if the client can successfully connect to the
 // containerd daemon and the healthcheck service returns the SERVING
 // response.
@@ -356,9 +349,6 @@ type RemoteContext struct {
 	// MaxConcurrentDownloads is the max concurrent content downloads for each pull.
 	MaxConcurrentDownloads int
 
-	// MaxConcurrentUploadedLayers is the max concurrent uploaded layers for each push.
-	MaxConcurrentUploadedLayers int
-
 	// AllMetadata downloads all manifests and known-configuration files
 	AllMetadata bool
 
@@ -467,12 +457,7 @@ func (c *Client) Push(ctx context.Context, ref string, desc ocispec.Descriptor, 
 		wrapper = pushCtx.HandlerWrapper
 	}
 
-	var limiter *semaphore.Weighted
-	if pushCtx.MaxConcurrentUploadedLayers > 0 {
-		limiter = semaphore.NewWeighted(int64(pushCtx.MaxConcurrentUploadedLayers))
-	}
-
-	return remotes.PushContent(ctx, pusher, desc, c.ContentStore(), limiter, pushCtx.PlatformMatcher, wrapper)
+	return remotes.PushContent(ctx, pusher, desc, c.ContentStore(), pushCtx.PlatformMatcher, wrapper)
 }
 
 // GetImage returns an existing image
@@ -729,12 +714,10 @@ func (c *Client) Version(ctx context.Context) (Version, error) {
 	}, nil
 }
 
-// ServerInfo represents the introspected server information
 type ServerInfo struct {
 	UUID string
 }
 
-// Server returns server information from the introspection service
 func (c *Client) Server(ctx context.Context) (ServerInfo, error) {
 	c.connMu.Lock()
 	if c.conn == nil {
@@ -798,36 +781,4 @@ func CheckRuntime(current, expected string) bool {
 		}
 	}
 	return true
-}
-
-// GetSnapshotterSupportedPlatforms returns a platform matchers which represents the
-// supported platforms for the given snapshotters
-func (c *Client) GetSnapshotterSupportedPlatforms(ctx context.Context, snapshotterName string) (platforms.MatchComparer, error) {
-	filters := []string{fmt.Sprintf("type==%s, id==%s", plugin.SnapshotPlugin, snapshotterName)}
-	in := c.IntrospectionService()
-
-	resp, err := in.Plugins(ctx, filters)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(resp.Plugins) <= 0 {
-		return nil, fmt.Errorf("inspection service could not find snapshotter %s plugin", snapshotterName)
-	}
-
-	sn := resp.Plugins[0]
-	snPlatforms := toPlatforms(sn.Platforms)
-	return platforms.Any(snPlatforms...), nil
-}
-
-func toPlatforms(pt []apitypes.Platform) []ocispec.Platform {
-	platforms := make([]ocispec.Platform, len(pt))
-	for i, p := range pt {
-		platforms[i] = ocispec.Platform{
-			Architecture: p.Architecture,
-			OS:           p.OS,
-			Variant:      p.Variant,
-		}
-	}
-	return platforms
 }

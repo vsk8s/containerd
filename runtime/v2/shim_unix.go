@@ -22,12 +22,10 @@ import (
 	"context"
 	"io"
 	"net"
-	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/containerd/fifo"
-	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 )
 
@@ -36,9 +34,12 @@ func openShimLog(ctx context.Context, bundle *Bundle, _ func(string, time.Durati
 }
 
 func checkCopyShimLogError(ctx context.Context, err error) error {
+	// When using a multi-container shim, the fifo of the 2nd to Nth
+	// container will not be opened when the ctx is done. This will
+	// cause an ErrReadClosed that can be ignored.
 	select {
 	case <-ctx.Done():
-		if err == fifo.ErrReadClosed || errors.Is(err, os.ErrClosed) {
+		if err == fifo.ErrReadClosed {
 			return nil
 		}
 	default:

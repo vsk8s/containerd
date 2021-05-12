@@ -41,6 +41,10 @@ import (
 )
 
 var (
+	// ErrNoToken is returned if a request is successful but the body does not
+	// contain an authorization token.
+	ErrNoToken = errors.New("authorization server did not include a token in the response")
+
 	// ErrInvalidAuthorization is used when credentials are passed to a server but
 	// those credentials are rejected.
 	ErrInvalidAuthorization = errors.New("authorization failed")
@@ -219,13 +223,18 @@ func (r *countingReader) Read(p []byte) (int, error) {
 var _ remotes.Resolver = &dockerResolver{}
 
 func (r *dockerResolver) Resolve(ctx context.Context, ref string) (string, ocispec.Descriptor, error) {
-	base, err := r.resolveDockerBase(ref)
+	refspec, err := reference.Parse(ref)
 	if err != nil {
 		return "", ocispec.Descriptor{}, err
 	}
-	refspec := base.refspec
+
 	if refspec.Object == "" {
 		return "", ocispec.Descriptor{}, reference.ErrObjectRequired
+	}
+
+	base, err := r.base(refspec)
+	if err != nil {
+		return "", ocispec.Descriptor{}, err
 	}
 
 	var (
@@ -258,7 +267,7 @@ func (r *dockerResolver) Resolve(ctx context.Context, ref string) (string, ocisp
 		return "", ocispec.Descriptor{}, errors.Wrap(errdefs.ErrNotFound, "no resolve hosts")
 	}
 
-	ctx, err = ContextWithRepositoryScope(ctx, refspec, false)
+	ctx, err = contextWithRepositoryScope(ctx, refspec, false)
 	if err != nil {
 		return "", ocispec.Descriptor{}, err
 	}
@@ -286,12 +295,14 @@ func (r *dockerResolver) Resolve(ctx context.Context, ref string) (string, ocisp
 				if lastErr == nil {
 					lastErr = err
 				}
+				log.G(ctx).WithError(err).Info("trying next host")
 				continue // try another host
 			}
 			resp.Body.Close() // don't care about body contents.
 
 			if resp.StatusCode > 299 {
 				if resp.StatusCode == http.StatusNotFound {
+					log.G(ctx).Info("trying next host - response was http.StatusNotFound")
 					continue
 				}
 				return "", ocispec.Descriptor{}, errors.Errorf("unexpected status code %v: %v", u, resp.Status)
@@ -382,7 +393,12 @@ func (r *dockerResolver) Resolve(ctx context.Context, ref string) (string, ocisp
 }
 
 func (r *dockerResolver) Fetcher(ctx context.Context, ref string) (remotes.Fetcher, error) {
-	base, err := r.resolveDockerBase(ref)
+	refspec, err := reference.Parse(ref)
+	if err != nil {
+		return nil, err
+	}
+
+	base, err := r.base(refspec)
 	if err != nil {
 		return nil, err
 	}
@@ -393,25 +409,21 @@ func (r *dockerResolver) Fetcher(ctx context.Context, ref string) (remotes.Fetch
 }
 
 func (r *dockerResolver) Pusher(ctx context.Context, ref string) (remotes.Pusher, error) {
-	base, err := r.resolveDockerBase(ref)
+	refspec, err := reference.Parse(ref)
+	if err != nil {
+		return nil, err
+	}
+
+	base, err := r.base(refspec)
 	if err != nil {
 		return nil, err
 	}
 
 	return dockerPusher{
 		dockerBase: base,
-		object:     base.refspec.Object,
+		object:     refspec.Object,
 		tracker:    r.tracker,
 	}, nil
-}
-
-func (r *dockerResolver) resolveDockerBase(ref string) (*dockerBase, error) {
-	refspec, err := reference.Parse(ref)
-	if err != nil {
-		return nil, err
-	}
-
-	return r.base(refspec)
 }
 
 type dockerBase struct {
@@ -445,11 +457,10 @@ func (r *dockerBase) filterHosts(caps HostCapabilities) (hosts []RegistryHost) {
 }
 
 func (r *dockerBase) request(host RegistryHost, method string, ps ...string) *request {
-	header := r.header.Clone()
-	if header == nil {
-		header = http.Header{}
+	header := http.Header{}
+	for key, value := range r.header {
+		header[key] = append(header[key], value...)
 	}
-
 	for key, value := range host.Header {
 		header[key] = append(header[key], value...)
 	}

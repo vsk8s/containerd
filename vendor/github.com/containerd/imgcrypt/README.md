@@ -1,8 +1,8 @@
-# imgcrypt image encryption library and command line tool
+# imgcrypt image encryption library and command line lool
 
 Project `imgcrypt` is a non-core subproject of containerd.
 
-The `imgcrypt` library provides API exensions for containerd to support encrypted container images and implements
+The `imgcrypt` library provides API exensions for containerd to support encryted container images and implements
 the `ctd-decoder` command line tool for use by containerd to decrypt encrypted container images. An extended version
 of containerd's `ctr` tool (`ctr-enc') with support for encrypting and decrypting container images is also provided.
 
@@ -10,8 +10,7 @@ of containerd's `ctr` tool (`ctr-enc') with support for encrypting and decryptin
 
 # Usage
 
-`imgcrypt` requires containerd 1.3 or later. Containerd 1.4 or later is required when used with Kubernetes.
-For configuration instructions for kubernetes, please consult the [CRI decryption document](https://github.com/containerd/containerd/blob/master/docs/decryption.md).
+`imgcrypt` requires containerd 1.3 or later.
 
 Build and install `imgcrypt`:
 
@@ -29,7 +28,7 @@ disable_plugins = ["cri"]
 root = "/tmp/var/lib/containerd"
 state = "/tmp/run/containerd"
 [grpc]
-  address = "/tmp/run/containerd/containerd.sock"
+  address = "/tmp/run/containerd/mycontainerd.sock"
   uid = 0
   gid = 0
 [stream_processors]
@@ -48,7 +47,7 @@ state = "/tmp/run/containerd"
 Create an RSA key pair using the openssl command line tool and encrypted an image:
 
 ```
-# openssl genrsa -out mykey.pem
+# openssl genrsa --out mykey.pem
 Generating RSA private key, 2048 bit long modulus (2 primes)
 ...............................................+++++
 ............................+++++

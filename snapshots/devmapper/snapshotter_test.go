@@ -37,6 +37,7 @@ import (
 	"github.com/containerd/containerd/pkg/testutil"
 	"github.com/containerd/containerd/snapshots"
 	"github.com/containerd/containerd/snapshots/devmapper/dmsetup"
+	"github.com/containerd/containerd/snapshots/devmapper/losetup"
 	"github.com/containerd/containerd/snapshots/testsuite"
 )
 
@@ -69,7 +70,7 @@ func TestSnapshotterSuite(t *testing.T) {
 		removePool := func() error {
 			result := multierror.Append(
 				snap.pool.RemovePool(ctx),
-				mount.DetachLoopDevice(loopDataDevice, loopMetaDevice))
+				losetup.DetachLoopDevice(loopDataDevice, loopMetaDevice))
 
 			return result.ErrorOrNil()
 		}
@@ -136,12 +137,6 @@ func testUsage(t *testing.T, snapshotter snapshots.Snapshotter) {
 	assert.NilError(t, err)
 
 	// Should be at least 1 MB + fs metadata
-	assert.Check(t, layer2Usage.Size >= sizeBytes,
-		"%d > %d", layer2Usage.Size, sizeBytes)
-}
-
-func TestMkfs(t *testing.T) {
-	ctx := context.Background()
-	err := mkfs(ctx, "")
-	assert.ErrorContains(t, err, `mkfs.ext4 couldn't initialize ""`)
+	assert.Assert(t, layer2Usage.Size > sizeBytes)
+	assert.Assert(t, layer2Usage.Size < sizeBytes+256*dmsetup.SectorSize)
 }

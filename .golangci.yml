@@ -14,10 +14,6 @@ linters:
   disable:
     - errcheck
 
-issues:
-  include:
-    - EXC0002
-
 run:
   timeout: 3m
   skip-dirs:

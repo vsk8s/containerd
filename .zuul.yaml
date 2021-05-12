@@ -1,6 +1,5 @@
 - project:
     name: containerd/containerd
-    merge-mode: merge
     check:
       jobs:
         - containerd-build-arm64

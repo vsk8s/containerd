@@ -73,7 +73,7 @@ var metricsCommand = cli.Command{
 		}
 		metric, err := task.Metrics(ctx)
 		if err != nil {
-			return err
+			return nil
 		}
 		anydata, err := typeurl.UnmarshalAny(metric.Data)
 		if err != nil {

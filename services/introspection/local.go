@@ -54,7 +54,6 @@ func init() {
 	})
 }
 
-// Local is a local implementation of the introspection service
 type Local struct {
 	mu      sync.Mutex
 	plugins []api.Plugin
@@ -63,7 +62,6 @@ type Local struct {
 
 var _ = (api.IntrospectionClient)(&Local{})
 
-// UpdateLocal updates the local introspection service
 func (l *Local) UpdateLocal(root string, plugins []api.Plugin) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -71,7 +69,6 @@ func (l *Local) UpdateLocal(root string, plugins []api.Plugin) {
 	l.plugins = plugins
 }
 
-// Plugins returns the locally defined plugins
 func (l *Local) Plugins(ctx context.Context, req *api.PluginsRequest, _ ...grpc.CallOption) (*api.PluginsResponse, error) {
 	filter, err := filters.ParseAll(req.Filters...)
 	if err != nil {
@@ -99,7 +96,6 @@ func (l *Local) getPlugins() []api.Plugin {
 	return l.plugins
 }
 
-// Server returns the local server information
 func (l *Local) Server(ctx context.Context, _ *ptypes.Empty, _ ...grpc.CallOption) (*api.ServerResponse, error) {
 	u, err := l.getUUID()
 	if err != nil {

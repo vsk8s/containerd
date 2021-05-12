@@ -20,10 +20,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/BurntSushi/toml"
 	"github.com/imdario/mergo"
-	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/plugin"
@@ -56,7 +55,7 @@ type Config struct {
 	// required plugin doesn't exist or fails to be initialized or started.
 	RequiredPlugins []string `toml:"required_plugins"`
 	// Plugins provides plugin specific configuration for the initialization of a plugin
-	Plugins map[string]toml.Tree `toml:"plugins"`
+	Plugins map[string]toml.Primitive `toml:"plugins"`
 	// OOMScore adjust the containerd's oom score
 	OOMScore int `toml:"oom_score"`
 	// Cgroup specifies cgroup information for the containerd daemon process
@@ -81,8 +80,6 @@ type StreamProcessor struct {
 	Path string `toml:"path"`
 	// Args to the binary
 	Args []string `toml:"args"`
-	// Environment variables for the binary
-	Env []string `toml:"env"`
 }
 
 // GetVersion returns the config file's version
@@ -95,9 +92,8 @@ func (c *Config) GetVersion() int {
 
 // ValidateV2 validates the config for a v2 file
 func (c *Config) ValidateV2() error {
-	version := c.GetVersion()
-	if version < 2 {
-		logrus.Warnf("deprecated version : `%d`, please switch to version `2`", version)
+	if c.GetVersion() != 2 {
+		return nil
 	}
 	for _, p := range c.DisabledPlugins {
 		if len(strings.Split(p, ".")) < 4 {
@@ -142,8 +138,6 @@ type Debug struct {
 	UID     int    `toml:"uid"`
 	GID     int    `toml:"gid"`
 	Level   string `toml:"level"`
-	// Format represents the logging format
-	Format string `toml:"format"`
 }
 
 // MetricsConfig provides metrics configuration
@@ -211,7 +205,7 @@ func (c *Config) Decode(p *plugin.Registration) (interface{}, error) {
 	if !ok {
 		return p.Config, nil
 	}
-	if err := data.Unmarshal(p.Config); err != nil {
+	if err := toml.PrimitiveDecode(data, p.Config); err != nil {
 		return nil, err
 	}
 	return p.Config, nil
@@ -260,26 +254,16 @@ func LoadConfig(path string, out *Config) error {
 		out.Imports = append(out.Imports, path)
 	}
 
-	err := out.ValidateV2()
-	if err != nil {
-		return errors.Wrapf(err, "failed to load TOML from %s", path)
-	}
-	return nil
+	return out.ValidateV2()
 }
 
 // loadConfigFile decodes a TOML file at the given path
 func loadConfigFile(path string) (*Config, error) {
 	config := &Config{}
-
-	file, err := toml.LoadFile(path)
+	_, err := toml.DecodeFile(path, &config)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to load TOML: %s", path)
+		return nil, err
 	}
-
-	if err := file.Unmarshal(config); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal TOML")
-	}
-
 	return config, nil
 }
 

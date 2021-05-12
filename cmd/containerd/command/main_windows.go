@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"unsafe"
 
 	"github.com/Microsoft/go-winio/pkg/etw"
@@ -32,7 +33,8 @@ import (
 )
 
 var (
-	handledSignals = []os.Signal{
+	defaultConfigPath = filepath.Join(os.Getenv("programfiles"), "containerd", "config.toml")
+	handledSignals    = []os.Signal{
 		windows.SIGTERM,
 		windows.SIGINT,
 	}

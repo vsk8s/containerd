@@ -75,33 +75,6 @@ func NewPoolDevice(ctx context.Context, config *Config) (*PoolDevice, error) {
 	return poolDevice, nil
 }
 
-func retry(ctx context.Context, f func() error) error {
-	var (
-		maxRetries = 100
-		retryDelay = 100 * time.Millisecond
-		retryErr   error
-	)
-
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		retryErr = f()
-		if retryErr == nil {
-			return nil
-		} else if retryErr != unix.EBUSY {
-			return retryErr
-		}
-
-		// Don't spam logs
-		if attempt%10 == 0 {
-			log.G(ctx).WithError(retryErr).Warnf("retrying... (%d of %d)", attempt, maxRetries)
-		}
-
-		// Devmapper device is busy, give it a bit of time and retry removal
-		time.Sleep(retryDelay)
-	}
-
-	return retryErr
-}
-
 // ensureDeviceStates updates devices to their real state:
 //   - marks devices with incomplete states (after crash) as 'Faulty'
 //   - activates devices if they are marked as 'Activated' but the dm
@@ -331,6 +304,12 @@ func (p *PoolDevice) CreateSnapshotDevice(ctx context.Context, deviceName string
 		}
 	}()
 
+	// Save snapshot metadata and allocate new device ID
+	metaErr = p.metadata.AddDevice(ctx, snapInfo)
+	if metaErr != nil {
+		return metaErr
+	}
+
 	// The base device must be suspend before taking a snapshot to
 	// avoid corruption.
 	// https://github.com/torvalds/linux/blob/v5.7/Documentation/admin-guide/device-mapper/thin-provisioning.rst#internal-snapshots
@@ -346,12 +325,6 @@ func (p *PoolDevice) CreateSnapshotDevice(ctx context.Context, deviceName string
 				log.G(ctx).WithError(err).Errorf("failed to resume base device %q after taking its snapshot", baseInfo.Name)
 			}
 		}()
-	}
-
-	// Save snapshot metadata and allocate new device ID
-	metaErr = p.metadata.AddDevice(ctx, snapInfo)
-	if metaErr != nil {
-		return metaErr
 	}
 
 	// Create thin device snapshot
@@ -395,7 +368,6 @@ func (p *PoolDevice) SuspendDevice(ctx context.Context, deviceName string) error
 	return nil
 }
 
-// ResumeDevice resumes IO for the given device
 func (p *PoolDevice) ResumeDevice(ctx context.Context, deviceName string) error {
 	if err := p.transition(ctx, deviceName, Resuming, Resumed, func() error {
 		return dmsetup.ResumeDevice(deviceName)
@@ -421,13 +393,30 @@ func (p *PoolDevice) DeactivateDevice(ctx context.Context, deviceName string, de
 	}
 
 	if err := p.transition(ctx, deviceName, Deactivating, Deactivated, func() error {
-		return retry(ctx, func() error {
-			if err := dmsetup.RemoveDevice(deviceName, opts...); err != nil {
-				return errors.Wrap(err, "failed to deactivate device")
+		var (
+			maxRetries = 100
+			retryDelay = 100 * time.Millisecond
+			retryErr   error
+		)
+
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			retryErr = dmsetup.RemoveDevice(deviceName, opts...)
+			if retryErr == nil {
+				return nil
+			} else if retryErr != unix.EBUSY {
+				return retryErr
 			}
 
-			return nil
-		})
+			// Don't spam logs
+			if attempt%10 == 0 {
+				log.G(ctx).WithError(retryErr).Warnf("failed to deactivate device, retrying... (%d of %d)", attempt, maxRetries)
+			}
+
+			// Devmapper device is busy, give it a bit of time and retry removal
+			time.Sleep(retryDelay)
+		}
+
+		return retryErr
 	}); err != nil {
 		return errors.Wrapf(err, "failed to deactivate device %q", deviceName)
 	}
@@ -504,15 +493,14 @@ func (p *PoolDevice) RemoveDevice(ctx context.Context, deviceName string) error 
 
 func (p *PoolDevice) deleteDevice(ctx context.Context, info *DeviceInfo) error {
 	if err := p.transition(ctx, info.Name, Removing, Removed, func() error {
-		return retry(ctx, func() error {
-			// Send 'delete' message to thin-pool
-			e := dmsetup.DeleteDevice(p.poolName, info.DeviceID)
-			// Ignores the error if the device has been deleted already.
-			if e != nil && !errors.Is(e, unix.ENODATA) {
-				return e
-			}
-			return nil
-		})
+		// Send 'delete' message to thin-pool
+		e := dmsetup.DeleteDevice(p.poolName, info.DeviceID)
+
+		// Ignores the error if the device has been deleted already.
+		if e != nil && !errors.Is(e, unix.ENODATA) {
+			return e
+		}
+		return nil
 	}); err != nil {
 		return errors.Wrapf(err, "failed to delete device %q (dev id: %d)", info.Name, info.DeviceID)
 	}

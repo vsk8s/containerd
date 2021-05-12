@@ -17,7 +17,7 @@
 
 # Vagrantfile for cgroup2 and SELinux
 Vagrant.configure("2") do |config|
-  config.vm.box = "fedora/33-cloud-base"
+  config.vm.box = "fedora/32-cloud-base"
   memory = 4096
   cpus = 2
   config.vm.provider :virtualbox do |v|
@@ -77,7 +77,7 @@ Vagrant.configure("2") do |config|
   config.vm.provision "install-golang", type: "shell", run: "once" do |sh|
     sh.upload_path = "/tmp/vagrant-install-golang"
     sh.env = {
-        'GO_VERSION': ENV['GO_VERSION'] || "1.16.2",
+        'GO_VERSION': ENV['GO_VERSION'] || "1.15.11",
     }
     sh.inline = <<~SHELL
         #!/usr/bin/env bash
@@ -85,6 +85,7 @@ Vagrant.configure("2") do |config|
         curl -fsSL "https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz" | tar Cxz /usr/local
         cat >> /etc/environment <<EOF
 PATH=/usr/local/go/bin:$PATH
+GO111MODULE=off
 EOF
         source /etc/environment
         cat >> /etc/profile.d/sh.local <<EOF
@@ -204,7 +205,7 @@ EOF
         set -eux -o pipefail
         rm -rf /var/lib/containerd-test /run/containerd-test
         cd ${GOPATH}/src/github.com/containerd/containerd
-        make integration EXTRA_TESTFLAGS="-timeout 15m -no-criu -test.v" TEST_RUNTIME=io.containerd.runc.v2 RUNC_FLAVOR=$RUNC_FLAVOR
+        make integration EXTRA_TESTFLAGS="-no-criu -test.v" TEST_RUNTIME=io.containerd.runc.v2 RUNC_FLAVOR=$RUNC_FLAVOR
     SHELL
   end
 
@@ -213,6 +214,9 @@ EOF
   #
   config.vm.provision "test-cri", type: "shell", run: "never" do |sh|
     sh.upload_path = "/tmp/test-cri"
+    sh.env = {
+        'CRITEST_ARGS': ENV['CRITEST_ARGS'],
+    }
     sh.inline = <<~SHELL
         #!/usr/bin/env bash
         source /etc/environment
@@ -235,7 +239,7 @@ EOF
         fi
         trap cleanup EXIT
         ctr version
-        critest --parallel=$(nproc) --ginkgo.skip='HostIpc is true'
+        critest --parallel=$(nproc) ${CRITEST_ARGS}
     SHELL
   end
 

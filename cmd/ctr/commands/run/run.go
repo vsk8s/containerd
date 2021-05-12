@@ -17,7 +17,6 @@
 package run
 
 import (
-	"context"
 	gocontext "context"
 	"encoding/csv"
 	"fmt"
@@ -29,9 +28,7 @@ import (
 	"github.com/containerd/containerd/cmd/ctr/commands"
 	"github.com/containerd/containerd/cmd/ctr/commands/tasks"
 	"github.com/containerd/containerd/containers"
-	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/oci"
-	gocni "github.com/containerd/go-cni"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -129,10 +126,9 @@ var Command = cli.Command{
 			id  string
 			ref string
 
-			tty       = context.Bool("tty")
-			detach    = context.Bool("detach")
-			config    = context.IsSet("config")
-			enableCNI = context.Bool("cni")
+			tty    = context.Bool("tty")
+			detach = context.Bool("detach")
+			config = context.IsSet("config")
 		)
 
 		if config {
@@ -171,42 +167,21 @@ var Command = cli.Command{
 				return err
 			}
 		}
-		var network gocni.CNI
-		if enableCNI {
-			if network, err = gocni.New(gocni.WithDefaultConf); err != nil {
-				return err
-			}
-		}
-
 		opts := getNewTaskOpts(context)
 		ioOpts := []cio.Opt{cio.WithFIFODir(context.String("fifo-dir"))}
 		task, err := tasks.NewTask(ctx, client, container, context.String("checkpoint"), con, context.Bool("null-io"), context.String("log-uri"), ioOpts, opts...)
 		if err != nil {
 			return err
 		}
-
 		var statusC <-chan containerd.ExitStatus
 		if !detach {
-			defer func() {
-				if enableCNI {
-					if err := network.Remove(ctx, fullID(ctx, container), ""); err != nil {
-						logrus.WithError(err).Error("network review")
-					}
-				}
-				task.Delete(ctx)
-			}()
-
+			defer task.Delete(ctx)
 			if statusC, err = task.Wait(ctx); err != nil {
 				return err
 			}
 		}
 		if context.IsSet("pid-file") {
 			if err := commands.WritePidFile(context.String("pid-file"), int(task.Pid())); err != nil {
-				return err
-			}
-		}
-		if enableCNI {
-			if _, err := network.Setup(ctx, fullID(ctx, container), fmt.Sprintf("/proc/%d/ns/net", task.Pid())); err != nil {
 				return err
 			}
 		}
@@ -237,13 +212,4 @@ var Command = cli.Command{
 		}
 		return nil
 	},
-}
-
-func fullID(ctx context.Context, c containerd.Container) string {
-	id := c.ID()
-	ns, ok := namespaces.Namespace(ctx)
-	if !ok {
-		return id
-	}
-	return fmt.Sprintf("%s-%s", ns, id)
 }

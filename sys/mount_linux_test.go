@@ -32,7 +32,7 @@ import (
 type fMountatCaseFunc func(t *testing.T, root string)
 
 func TestFMountat(t *testing.T) {
-	if !runningPrivileged() {
+	if RunningUnprivileged() {
 		t.Skip("Needs to be run as root")
 		return
 	}
