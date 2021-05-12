@@ -1,3 +1,11 @@
+containerd (1.4.5~ds1-1) unstable; urgency=medium
+
+  * New upstream patch version v1.4.5
+  * Drop patch applied in new version:
+    - 0008-backport-overlay-support-userxattr-kernel-5.11.patch
+
+ -- Shengjing Zhu <zhsj@debian.org>  Wed, 12 May 2021 13:17:38 +0800
+
 containerd (1.4.4~ds1-2) unstable; urgency=medium
 
   * Backport apparmor signal handle patch
