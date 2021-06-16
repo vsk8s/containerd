@@ -31,8 +31,6 @@ import (
 var (
 	// check to make sure the *service implements the GRPC API
 	_ = (taskAPI.TaskService)(&service{})
-	// common response type
-	empty = &ptypes.Empty{}
 )
 
 // New returns a new shim service
@@ -44,7 +42,7 @@ type service struct {
 }
 
 // StartShim is a binary call that executes a new shim returning the address
-func (s *service) StartShim(ctx context.Context, id, containerdBinary, containerdAddress, containerdTTRPCAddress string) (string, error) {
+func (s *service) StartShim(ctx context.Context, opts shim.StartOpts) (string, error) {
 	return "", nil
 }
 
@@ -121,7 +119,7 @@ func (s *service) Connect(ctx context.Context, r *taskAPI.ConnectRequest) (*task
 // Shutdown is called after the underlying resources of the shim are cleaned up and the service can be stopped
 func (s *service) Shutdown(ctx context.Context, r *taskAPI.ShutdownRequest) (*ptypes.Empty, error) {
 	os.Exit(0)
-	return empty, nil
+	return &ptypes.Empty{}, nil
 }
 
 // Stats returns container level system stats for a container and its processes

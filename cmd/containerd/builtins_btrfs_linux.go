@@ -1,4 +1,4 @@
-// +build !no_btrfs
+// +build !no_btrfs,cgo
 
 /*
    Copyright The containerd Authors.
@@ -18,4 +18,4 @@
 
 package main
 
-import _ "github.com/containerd/containerd/snapshots/btrfs"
+import _ "github.com/containerd/containerd/snapshots/btrfs/plugin"

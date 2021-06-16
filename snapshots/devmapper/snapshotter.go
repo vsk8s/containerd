@@ -30,8 +30,6 @@ import (
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/mount"
-	"github.com/containerd/containerd/platforms"
-	"github.com/containerd/containerd/plugin"
 	"github.com/containerd/containerd/snapshots"
 	"github.com/containerd/containerd/snapshots/devmapper/dmsetup"
 	"github.com/containerd/containerd/snapshots/storage"
@@ -39,32 +37,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
-
-func init() {
-	plugin.Register(&plugin.Registration{
-		Type:   plugin.SnapshotPlugin,
-		ID:     "devmapper",
-		Config: &Config{},
-		InitFn: func(ic *plugin.InitContext) (interface{}, error) {
-			ic.Meta.Platforms = append(ic.Meta.Platforms, platforms.DefaultSpec())
-
-			config, ok := ic.Config.(*Config)
-			if !ok {
-				return nil, errors.New("invalid devmapper configuration")
-			}
-
-			if config.PoolName == "" {
-				return nil, errors.New("devmapper not configured")
-			}
-
-			if config.RootPath == "" {
-				config.RootPath = ic.Root
-			}
-
-			return NewSnapshotter(ic.Context, config)
-		},
-	})
-}
 
 const (
 	metadataFileName = "metadata.db"
@@ -275,7 +247,7 @@ func (s *Snapshotter) Commit(ctx context.Context, name, key string, opts ...snap
 		}
 
 		// After committed, the snapshot device will not be directly
-		// used anymore. We'd better deativate it to make it *invisible*
+		// used anymore. We'd better deactivate it to make it *invisible*
 		// in userspace, so that tools like LVM2 and fdisk cannot touch it,
 		// and avoid useless IOs on it.
 		//
@@ -293,7 +265,7 @@ func (s *Snapshotter) Commit(ctx context.Context, name, key string, opts ...snap
 			return err
 		}
 
-		return s.pool.DeactivateDevice(ctx, deviceName, false, false)
+		return s.pool.DeactivateDevice(ctx, deviceName, true, false)
 	})
 }
 
@@ -393,8 +365,14 @@ func (s *Snapshotter) createSnapshot(ctx context.Context, kind snapshots.Kind, k
 			return nil, err
 		}
 
-		if err := s.mkfs(ctx, deviceName); err != nil {
+		if err := mkfs(ctx, dmsetup.GetFullDevicePath(deviceName)); err != nil {
+			status, sErr := dmsetup.Status(s.pool.poolName)
+			if sErr != nil {
+				multierror.Append(err, sErr)
+			}
+
 			// Rollback thin device creation if mkfs failed
+			log.G(ctx).WithError(err).Errorf("failed to initialize thin device %q for snapshot %s pool status %s", deviceName, snap.ID, status.RawOutput)
 			return nil, multierror.Append(err,
 				s.pool.RemoveDevice(ctx, deviceName))
 		}
@@ -421,22 +399,22 @@ func (s *Snapshotter) createSnapshot(ctx context.Context, kind snapshots.Kind, k
 }
 
 // mkfs creates ext4 filesystem on the given devmapper device
-func (s *Snapshotter) mkfs(ctx context.Context, deviceName string) error {
+func mkfs(ctx context.Context, path string) error {
 	args := []string{
 		"-E",
 		// We don't want any zeroing in advance when running mkfs on thin devices (see "man mkfs.ext4")
 		"nodiscard,lazy_itable_init=0,lazy_journal_init=0",
-		dmsetup.GetFullDevicePath(deviceName),
+		path,
 	}
 
 	log.G(ctx).Debugf("mkfs.ext4 %s", strings.Join(args, " "))
-	output, err := exec.Command("mkfs.ext4", args...).CombinedOutput()
+	b, err := exec.Command("mkfs.ext4", args...).CombinedOutput()
+	out := string(b)
 	if err != nil {
-		log.G(ctx).WithError(err).Errorf("failed to write fs:\n%s", string(output))
-		return err
+		return errors.Wrapf(err, "mkfs.ext4 couldn't initialize %q: %s", path, out)
 	}
 
-	log.G(ctx).Debugf("mkfs:\n%s", string(output))
+	log.G(ctx).Debugf("mkfs:\n%s", out)
 	return nil
 }
 
@@ -510,6 +488,7 @@ func (s *Snapshotter) withTransaction(ctx context.Context, writable bool, fn fun
 	return nil
 }
 
+// Cleanup cleans up all removed and unused resources
 func (s *Snapshotter) Cleanup(ctx context.Context) error {
 	var removedDevices []*DeviceInfo
 
