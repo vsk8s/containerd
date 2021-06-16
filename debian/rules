@@ -14,7 +14,6 @@ CRI_FILE   += vendor/github.com/containerd/imgcrypt
 CRI_FILE   += vendor/github.com/containerd/nri
 
 export DH_GOLANG_EXCLUDES      := $(EXCLUDES)
-export DH_GOLANG_INSTALL_EXTRA := ./pkg/seccomp/fixtures
 
 %:
 	dh $@ --buildsystem=golang --with=golang --builddirectory=_build
