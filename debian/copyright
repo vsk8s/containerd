@@ -49,6 +49,7 @@ Files-Excluded:
   vendor/github.com/matttproud/golang_protobuf_extensions
   vendor/github.com/miekg/pkcs11
   vendor/github.com/mistifyio/go-zfs
+  vendor/github.com/moby/locker
   vendor/github.com/moby/sys
   vendor/github.com/modern-go/concurrent
   vendor/github.com/modern-go/reflect2
