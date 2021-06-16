@@ -1,3 +1,9 @@
+containerd (1.5.2~ds1-1) experimental; urgency=medium
+
+  * New upstream version 1.5.2~ds1
+
+ -- Shengjing Zhu <zhsj@debian.org>  Thu, 17 Jun 2021 00:28:02 +0800
+
 containerd (1.5.0~rc1~ds1-1) experimental; urgency=medium
 
   * New upstream version 1.5.0~rc1~ds1
