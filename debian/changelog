@@ -1,3 +1,9 @@
+containerd (1.4.5~ds1-2) unstable; urgency=medium
+
+  * Backport patches for CVE-2021-32760
+
+ -- Shengjing Zhu <zhsj@debian.org>  Tue, 20 Jul 2021 02:36:10 +0800
+
 containerd (1.4.5~ds1-1) unstable; urgency=medium
 
   * New upstream patch version v1.4.5
