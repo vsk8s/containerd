@@ -1,3 +1,10 @@
+containerd (1.5.4~ds1-1) experimental; urgency=medium
+
+  * New upstream version 1.5.4~ds1
+    Fix CVE-2021-32760.
+
+ -- Shengjing Zhu <zhsj@debian.org>  Tue, 20 Jul 2021 02:45:17 +0800
+
 containerd (1.5.3~ds1-1) experimental; urgency=medium
 
   * New upstream version 1.5.3~ds1
