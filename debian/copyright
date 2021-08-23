@@ -4,6 +4,7 @@ Files-Excluded:
   vendor/github.com/Microsoft/go-winio
   vendor/github.com/Microsoft/hcsshim
   vendor/github.com/beorn7/perks
+  vendor/github.com/bits-and-blooms/bitset
   vendor/github.com/cespare/xxhash
   vendor/github.com/cilium/ebpf
   vendor/github.com/containerd/aufs~~
@@ -72,7 +73,6 @@ Files-Excluded:
   vendor/github.com/stretchr/testify
   vendor/github.com/tchap/go-patricia
   vendor/github.com/urfave/cli
-  vendor/github.com/willf/bitset
   vendor/go.etcd.io/bbolt
   vendor/go.mozilla.org/pkcs7
   vendor/go.opencensus.io
