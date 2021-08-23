@@ -8,6 +8,6 @@ dh_auto_configure -O--buildsystem=golang -O--builddirectory=_build
 
 # overlayfs not work in lxc
 find _build/ -name snapshotter_default_linux.go -exec sed -i 's|DefaultSnapshotter = "overlayfs"|DefaultSnapshotter = "native"|g' {} +
-DH_GOLANG_BUILDPKG=github.com/containerd/containerd dh_auto_test -O--buildsystem=golang -O--builddirectory=_build -- -c
+DH_GOLANG_BUILDPKG=github.com/containerd/containerd/integration/client dh_auto_test -O--buildsystem=golang -O--builddirectory=_build -- -c
 
-./_build/containerd.test -test.v -test.root -address=/run/containerd/containerd.sock
+./_build/client.test -test.v -test.root -address=/run/containerd/containerd.sock

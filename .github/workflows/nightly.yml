@@ -11,16 +11,16 @@ jobs:
     name: Linux
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: src/github.com/containerd/containerd
+
     steps:
       - uses: actions/setup-go@v2
         with:
-          go-version: '1.15.11'
+          go-version: '1.16.6'
 
-      - name: Checkout
-        uses: actions/checkout@v1
-        env:
-          GOPATH: ${{ runner.workspace }}
-          GO111MODULE: off
+      - uses: actions/checkout@v2
         with:
           path: src/github.com/containerd/containerd
 
@@ -60,7 +60,6 @@ jobs:
 
       - name: Build amd64
         env:
-          GOPATH: ${{ runner.workspace }}
           GOOS: linux
           GOARCH: amd64
         run: |
@@ -69,7 +68,6 @@ jobs:
 
       - name: Build arm64
         env:
-          GOPATH: ${{ runner.workspace }}
           GOOS: linux
           GOARCH: arm64
           CC: aarch64-linux-gnu-gcc
@@ -80,7 +78,6 @@ jobs:
 
       - name: Build s390x
         env:
-          GOPATH: ${{ runner.workspace }}
           GOOS: linux
           GOARCH: s390x
           CGO_ENABLED: 1
@@ -91,7 +88,6 @@ jobs:
 
       - name: Build ppc64le
         env:
-          GOPATH: ${{ runner.workspace }}
           GOOS: linux
           GOARCH: ppc64le
           CGO_ENABLED: 1
@@ -108,39 +104,40 @@ jobs:
         uses: actions/upload-artifact@v1
         with:
           name: linux_amd64
-          path: bin_amd64
+          path: src/github.com/containerd/containerd/bin_amd64
 
       - name: Upload artifacts (linux_arm64)
         uses: actions/upload-artifact@v1
         with:
           name: linux_arm64
-          path: bin_arm64
+          path: src/github.com/containerd/containerd/bin_arm64
 
       - name: Upload artifacts (linux_s390x)
         uses: actions/upload-artifact@v1
         with:
           name: linux_s390x
-          path: bin_s390x
+          path: src/github.com/containerd/containerd/bin_s390x
 
       - name: Upload artifacts (linux_ppc64le)
         uses: actions/upload-artifact@v1
         with:
           name: linux_ppc64le
-          path: bin_ppc64le
+          path: src/github.com/containerd/containerd/bin_ppc64le
 
   windows:
     name: Windows
     runs-on: windows-latest
+
+    defaults:
+      run:
+        working-directory: src/github.com/containerd/containerd
+
     steps:
       - uses: actions/setup-go@v2
         with:
-          go-version: '1.15.11'
+          go-version: '1.16.6'
 
-      - name: Checkout
-        uses: actions/checkout@v1
-        env:
-          GOPATH: ${{ runner.workspace }}
-          GO111MODULE: off
+      - uses: actions/checkout@v2
         with:
           path: src/github.com/containerd/containerd
 
@@ -152,7 +149,6 @@ jobs:
 
       - name: Build amd64
         env:
-          GOPATH: ${{ runner.workspace }}
           GOOS: windows
           GOARCH: amd64
         run: |
@@ -162,4 +158,4 @@ jobs:
         uses: actions/upload-artifact@v1
         with:
           name: windows_amd64
-          path: bin
+          path: src/github.com/containerd/containerd/bin/
