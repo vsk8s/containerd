@@ -13,6 +13,9 @@ CRI_FILE   += vendor/k8s.io
 CRI_FILE   += vendor/github.com/containerd/imgcrypt
 CRI_FILE   += vendor/github.com/containerd/nri
 
+export GO111MODULE=on
+export GOPROXY=
+
 export DH_GOLANG_EXCLUDES      := $(EXCLUDES)
 
 %:
